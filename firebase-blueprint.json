@@ -1,0 +1,284 @@
+{
+  "entities": {
+    "PsiAnnotation": {
+      "title": "PsiAnnotation",
+      "description": "Researcher annotation, hypothesis, and fire-safety observation linked to a NASA PSI combustion dataset.",
+      "type": "object",
+      "properties": {
+        "datasetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Identifier of the referenced PSI investigation."
+        },
+        "datasetTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "Human-readable title of the PSI investigation."
+        },
+        "pillarTag": {
+          "type": "string",
+          "enum": ["Prevention", "Detection", "Suppression"],
+          "minLength": 1,
+          "maxLength": 32,
+          "description": "Spacecraft fire safety pillar classification."
+        },
+        "personaRole": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Target audience role lens of the researcher."
+        },
+        "hypothesisNote": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "description": "Scientific observation, hypothesis, or engineering note."
+        },
+        "authorUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Firebase Auth UID of the annotation creator."
+        },
+        "authorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Display name of the researcher."
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["research_shared", "private"],
+          "minLength": 1,
+          "maxLength": 32,
+          "description": "Access visibility scope for researcher collaboration."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the annotation was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the annotation was last updated."
+        }
+      },
+      "required": [
+        "datasetId",
+        "datasetTitle",
+        "pillarTag",
+        "personaRole",
+        "hypothesisNote",
+        "authorUid",
+        "authorName",
+        "visibility",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SavedSimulation": {
+      "title": "SavedSimulation",
+      "description": "Snapshot of an exploration cabin atmosphere, partial-gravity, airflow, and E-FIELD flammability simulation run.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 140,
+          "description": "Descriptive label for the saved simulation scenario."
+        },
+        "presetName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Habitat atmosphere preset identifier."
+        },
+        "gravityG": {
+          "type": "number",
+          "description": "Simulated gravitational acceleration in Earth g (0.00 to 1.00)."
+        },
+        "oxygenPercent": {
+          "type": "number",
+          "description": "Cabin oxygen mole fraction percentage (10 to 100)."
+        },
+        "pressurePsia": {
+          "type": "number",
+          "description": "Total cabin pressure in psia (2.0 to 20.0)."
+        },
+        "airflowCmPerSec": {
+          "type": "number",
+          "description": "Forced ventilation duct velocity in cm/s (0 to 50)."
+        },
+        "eFieldKv": {
+          "type": "number",
+          "description": "ACME E-FIELD electrode potential in kV (-10 to +10)."
+        },
+        "ppO2Psia": {
+          "type": "number",
+          "description": "Computed partial pressure of oxygen in psia."
+        },
+        "flammabilityRiskIndex": {
+          "type": "number",
+          "description": "Computed material flammability risk index (0 to 100)."
+        },
+        "coolFlameWarning": {
+          "type": "boolean",
+          "description": "Whether 500-1000 K cool-flame re-ignition conditions are active."
+        },
+        "authorUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Firebase Auth UID of the simulation creator."
+        },
+        "authorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Display name of the researcher."
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["research_shared", "private"],
+          "minLength": 1,
+          "maxLength": 32,
+          "description": "Access visibility scope."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of simulation creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last update."
+        }
+      },
+      "required": [
+        "title",
+        "presetName",
+        "gravityG",
+        "oxygenPercent",
+        "pressurePsia",
+        "airflowCmPerSec",
+        "eFieldKv",
+        "ppO2Psia",
+        "flammabilityRiskIndex",
+        "coolFlameWarning",
+        "authorUid",
+        "authorName",
+        "visibility",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CustomRanking": {
+      "title": "CustomRanking",
+      "description": "Saved SI multi-criteria weight preset calibrated for a target audience role.",
+      "type": "object",
+      "properties": {
+        "presetTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Title of the custom SI ranking preset."
+        },
+        "personaRole": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Target audience persona lens."
+        },
+        "wCrewFlammability": {
+          "type": "number",
+          "description": "Weight for Crew Habitat Flammability Relevance (0-100)."
+        },
+        "wHighO2Coverage": {
+          "type": "number",
+          "description": "Weight for High-O2 Exploration Atmosphere Coverage (0-100)."
+        },
+        "wDetectionSuppression": {
+          "type": "number",
+          "description": "Weight for Detection & Suppression Actionability (0-100)."
+        },
+        "wPartialGTransfer": {
+          "type": "number",
+          "description": "Weight for Partial-Gravity / E-FIELD Transferability (0-100)."
+        },
+        "wDatasetDepth": {
+          "type": "number",
+          "description": "Weight for PSI Dataset Depth (0-100)."
+        },
+        "topRankedDatasetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "ID of the top-ranked PSI dataset under these weights."
+        },
+        "authorUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Firebase Auth UID of the preset creator."
+        },
+        "authorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Display name of the researcher."
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["research_shared", "private"],
+          "minLength": 1,
+          "maxLength": 32,
+          "description": "Access visibility scope."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last update."
+        }
+      },
+      "required": [
+        "presetTitle",
+        "personaRole",
+        "wCrewFlammability",
+        "wHighO2Coverage",
+        "wDetectionSuppression",
+        "wPartialGTransfer",
+        "wDatasetDepth",
+        "topRankedDatasetId",
+        "authorUid",
+        "authorName",
+        "visibility",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/psi_annotations/{annotationId}": {
+      "schema": { "$ref": "#/entities/PsiAnnotation" },
+      "description": "Stores researcher annotations and hypotheses attached to NASA PSI combustion datasets."
+    },
+    "/saved_simulations/{simulationId}": {
+      "schema": { "$ref": "#/entities/SavedSimulation" },
+      "description": "Stores exploration atmosphere and partial-gravity flammability simulation snapshots."
+    },
+    "/custom_rankings/{rankingId}": {
+      "schema": { "$ref": "#/entities/CustomRanking" },
+      "description": "Stores custom SI multi-criteria ranking weight presets per persona role."
+    }
+  }
+}

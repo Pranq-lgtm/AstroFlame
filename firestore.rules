@@ -1,0 +1,245 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 1 & Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'pranavkantak9@gmail.com' ||
+        request.auth.token.email == 'neelakantak31@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Admin registry collection (strictly locked to bootstrapped admin)
+    match /admins/{adminUid} {
+      allow get: if isSignedIn() && isValidId(adminUid) && (request.auth.uid == adminUid || isAdmin());
+      allow list: if isAdmin() && existing().email is string;
+      allow create, update, delete: if false;
+    }
+
+    // Validation Blueprint: PsiAnnotation
+    function isValidPsiAnnotation(data) {
+      return data.keys().hasAll([
+          'datasetId',
+          'datasetTitle',
+          'pillarTag',
+          'personaRole',
+          'hypothesisNote',
+          'authorUid',
+          'authorName',
+          'visibility',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'datasetId',
+          'datasetTitle',
+          'pillarTag',
+          'personaRole',
+          'hypothesisNote',
+          'authorUid',
+          'authorName',
+          'visibility',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.datasetId is string && data.datasetId.size() >= 1 && data.datasetId.size() <= 64 && data.datasetId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.datasetTitle is string && data.datasetTitle.size() >= 1 && data.datasetTitle.size() <= 160
+        && data.pillarTag is string && data.pillarTag.size() >= 1 && data.pillarTag.size() <= 32 && (data.pillarTag == 'Prevention' || data.pillarTag == 'Detection' || data.pillarTag == 'Suppression')
+        && data.personaRole is string && data.personaRole.size() >= 1 && data.personaRole.size() <= 64
+        && data.hypothesisNote is string && data.hypothesisNote.size() >= 1 && data.hypothesisNote.size() <= 2000
+        && data.authorUid is string && data.authorUid.size() >= 1 && data.authorUid.size() <= 128 && data.authorUid == request.auth.uid
+        && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 100
+        && data.visibility is string && data.visibility.size() >= 1 && data.visibility.size() <= 32 && (data.visibility == 'research_shared' || data.visibility == 'private')
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: SavedSimulation
+    function isValidSavedSimulation(data) {
+      return data.keys().hasAll([
+          'title',
+          'presetName',
+          'gravityG',
+          'oxygenPercent',
+          'pressurePsia',
+          'airflowCmPerSec',
+          'eFieldKv',
+          'ppO2Psia',
+          'flammabilityRiskIndex',
+          'coolFlameWarning',
+          'authorUid',
+          'authorName',
+          'visibility',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'title',
+          'presetName',
+          'gravityG',
+          'oxygenPercent',
+          'pressurePsia',
+          'airflowCmPerSec',
+          'eFieldKv',
+          'ppO2Psia',
+          'flammabilityRiskIndex',
+          'coolFlameWarning',
+          'authorUid',
+          'authorName',
+          'visibility',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 140
+        && data.presetName is string && data.presetName.size() >= 1 && data.presetName.size() <= 80
+        && (data.gravityG is int || data.gravityG is float) && data.gravityG >= 0 && data.gravityG <= 1.5
+        && (data.oxygenPercent is int || data.oxygenPercent is float) && data.oxygenPercent >= 10 && data.oxygenPercent <= 100
+        && (data.pressurePsia is int || data.pressurePsia is float) && data.pressurePsia >= 2.0 && data.pressurePsia <= 20.0
+        && (data.airflowCmPerSec is int || data.airflowCmPerSec is float) && data.airflowCmPerSec >= 0 && data.airflowCmPerSec <= 50
+        && (data.eFieldKv is int || data.eFieldKv is float) && data.eFieldKv >= -10 && data.eFieldKv <= 10
+        && (data.ppO2Psia is int || data.ppO2Psia is float) && data.ppO2Psia >= 0 && data.ppO2Psia <= 20.0
+        && (data.flammabilityRiskIndex is int || data.flammabilityRiskIndex is float) && data.flammabilityRiskIndex >= 0 && data.flammabilityRiskIndex <= 100
+        && data.coolFlameWarning is bool
+        && data.authorUid is string && data.authorUid.size() >= 1 && data.authorUid.size() <= 128 && data.authorUid == request.auth.uid
+        && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 100
+        && data.visibility is string && data.visibility.size() >= 1 && data.visibility.size() <= 32 && (data.visibility == 'research_shared' || data.visibility == 'private')
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: CustomRanking
+    function isValidCustomRanking(data) {
+      return data.keys().hasAll([
+          'presetTitle',
+          'personaRole',
+          'wCrewFlammability',
+          'wHighO2Coverage',
+          'wDetectionSuppression',
+          'wPartialGTransfer',
+          'wDatasetDepth',
+          'topRankedDatasetId',
+          'authorUid',
+          'authorName',
+          'visibility',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'presetTitle',
+          'personaRole',
+          'wCrewFlammability',
+          'wHighO2Coverage',
+          'wDetectionSuppression',
+          'wPartialGTransfer',
+          'wDatasetDepth',
+          'topRankedDatasetId',
+          'authorUid',
+          'authorName',
+          'visibility',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.presetTitle is string && data.presetTitle.size() >= 1 && data.presetTitle.size() <= 120
+        && data.personaRole is string && data.personaRole.size() >= 1 && data.personaRole.size() <= 64
+        && (data.wCrewFlammability is int || data.wCrewFlammability is float) && data.wCrewFlammability >= 0 && data.wCrewFlammability <= 100
+        && (data.wHighO2Coverage is int || data.wHighO2Coverage is float) && data.wHighO2Coverage >= 0 && data.wHighO2Coverage <= 100
+        && (data.wDetectionSuppression is int || data.wDetectionSuppression is float) && data.wDetectionSuppression >= 0 && data.wDetectionSuppression <= 100
+        && (data.wPartialGTransfer is int || data.wPartialGTransfer is float) && data.wPartialGTransfer >= 0 && data.wPartialGTransfer <= 100
+        && (data.wDatasetDepth is int || data.wDatasetDepth is float) && data.wDatasetDepth >= 0 && data.wDatasetDepth <= 100
+        && data.topRankedDatasetId is string && data.topRankedDatasetId.size() >= 1 && data.topRankedDatasetId.size() <= 64 && data.topRankedDatasetId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.authorUid is string && data.authorUid.size() >= 1 && data.authorUid.size() <= 128 && data.authorUid == request.auth.uid
+        && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 100
+        && data.visibility is string && data.visibility.size() >= 1 && data.visibility.size() <= 32 && (data.visibility == 'research_shared' || data.visibility == 'private')
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Collection 1: psi_annotations
+    match /psi_annotations/{annotationId} {
+      allow get: if isSignedIn() && isValidId(annotationId) && (existing().authorUid == request.auth.uid || existing().visibility == 'research_shared' || isAdmin());
+      allow list: if isSignedIn() && (existing().authorUid == request.auth.uid || existing().visibility == 'research_shared');
+      allow create: if isVerifiedUser() && isValidId(annotationId) && isValidPsiAnnotation(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(annotationId) && isValidPsiAnnotation(incoming())
+        && (existing().authorUid == request.auth.uid || isAdmin())
+        && incoming().authorUid == existing().authorUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['hypothesisNote', 'pillarTag', 'visibility', 'updatedAt'])
+        );
+      allow delete: if isVerifiedUser() && isValidId(annotationId) && (existing().authorUid == request.auth.uid || isAdmin());
+    }
+
+    // Collection 2: saved_simulations
+    match /saved_simulations/{simulationId} {
+      allow get: if isSignedIn() && isValidId(simulationId) && (existing().authorUid == request.auth.uid || existing().visibility == 'research_shared' || isAdmin());
+      allow list: if isSignedIn() && (existing().authorUid == request.auth.uid || existing().visibility == 'research_shared');
+      allow create: if isVerifiedUser() && isValidId(simulationId) && isValidSavedSimulation(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(simulationId) && isValidSavedSimulation(incoming())
+        && (existing().authorUid == request.auth.uid || isAdmin())
+        && incoming().authorUid == existing().authorUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'visibility', 'updatedAt'])
+        );
+      allow delete: if isVerifiedUser() && isValidId(simulationId) && (existing().authorUid == request.auth.uid || isAdmin());
+    }
+
+    // Collection 3: custom_rankings
+    match /custom_rankings/{rankingId} {
+      allow get: if isSignedIn() && isValidId(rankingId) && (existing().authorUid == request.auth.uid || existing().visibility == 'research_shared' || isAdmin());
+      allow list: if isSignedIn() && (existing().authorUid == request.auth.uid || existing().visibility == 'research_shared');
+      allow create: if isVerifiedUser() && isValidId(rankingId) && isValidCustomRanking(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(rankingId) && isValidCustomRanking(incoming())
+        && (existing().authorUid == request.auth.uid || isAdmin())
+        && incoming().authorUid == existing().authorUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'presetTitle',
+            'wCrewFlammability',
+            'wHighO2Coverage',
+            'wDetectionSuppression',
+            'wPartialGTransfer',
+            'wDatasetDepth',
+            'topRankedDatasetId',
+            'visibility',
+            'updatedAt'
+          ])
+        );
+      allow delete: if isVerifiedUser() && isValidId(rankingId) && (existing().authorUid == request.auth.uid || isAdmin());
+    }
+  }
+}

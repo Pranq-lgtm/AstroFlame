@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <rect x="6" y="6" width="116" height="116" rx="28" fill="#050814" stroke="#0284c7" stroke-width="4" />
+  <defs>
+    <linearGradient id="af-cyan" x1="22" y1="18" x2="72" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22d3ee" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="af-flame" x1="68" y1="30" x2="96" y2="106" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fde047" />
+      <stop offset="48%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#ef4444" />
+    </linearGradient>
+  </defs>
+  <!-- Left 'A' Strut -->
+  <path d="M68 20L28 104H44L68 48V20Z" fill="url(#af-cyan)" />
+  <!-- Inner Flame Plume -->
+  <path d="M74 36C74 36 92 54 90 76C88 91 77 98 67 96C57 94 52 84 55 72C57 64 63 59 63 59C63 59 61 69 66 74C71 79 79 73 78 62C77 51 74 36 74 36Z" fill="url(#af-flame)" />
+  <path d="M70 58C70 58 78 67 76 79C75 86 69 90 65 89C61 88 58 83 60 76C62 69 70 58 70 58Z" fill="#ffffff" />
+  <!-- Right 'A' Foot -->
+  <path d="M88 82L100 104H82L76 92L88 82Z" fill="url(#af-flame)" />
+  <!-- Orbital Ring -->
+  <ellipse cx="64" cy="68" rx="44" ry="15" transform="rotate(-24 64 68)" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" />
+  <!-- Upper-Right Star Accent inside Rounded Emblem -->
+  <path d="M86 28L88 33L93 35L88 37L86 42L84 37L79 35L84 33L86 28Z" fill="#38bdf8" />
+</svg>

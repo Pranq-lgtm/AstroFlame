@@ -1,0 +1,6 @@
+{
+  "name": "AstroFlame — SI Microgravity Fire Safety Dashboard",
+  "description": "SI-Powered Microgravity Combustion & Spacecraft Fire Safety Telemetry Dashboard for the 2026 NASA Space Apps Challenge (Flame in Freefall).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
