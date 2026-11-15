@@ -67,6 +67,9 @@ export interface CustomFirebaseCredentials {
   authDomain: string;
   projectId: string;
   appId: string;
+  storageBucket?: string;
+  messagingSenderId?: string;
+  measurementId?: string;
   firestoreDatabaseId?: string;
 }
 
@@ -84,6 +87,12 @@ export function getActiveFirebaseConfig(): CustomFirebaseCredentials {
             authDomain: parsed.authDomain || `${parsed.projectId}.firebaseapp.com`,
             projectId: parsed.projectId,
             appId: parsed.appId,
+            storageBucket:
+              parsed.storageBucket || defaultFirebaseConfig.storageBucket,
+            messagingSenderId:
+              parsed.messagingSenderId || defaultFirebaseConfig.messagingSenderId,
+            measurementId:
+              parsed.measurementId || defaultFirebaseConfig.measurementId,
             firestoreDatabaseId:
               parsed.firestoreDatabaseId || defaultFirebaseConfig.firestoreDatabaseId,
           };
@@ -100,6 +109,12 @@ export function getActiveFirebaseConfig(): CustomFirebaseCredentials {
     projectId:
       process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || defaultFirebaseConfig.projectId,
     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || defaultFirebaseConfig.appId,
+    storageBucket:
+      process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || defaultFirebaseConfig.storageBucket,
+    messagingSenderId:
+      process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || defaultFirebaseConfig.messagingSenderId,
+    measurementId:
+      process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || defaultFirebaseConfig.measurementId,
     firestoreDatabaseId:
       process.env.NEXT_PUBLIC_FIRESTORE_DATABASE_ID ||
       defaultFirebaseConfig.firestoreDatabaseId,
