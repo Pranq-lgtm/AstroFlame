@@ -8,3 +8,6 @@ coverage/
 .aistudio/
 public/assets/aistudio/
 DRAFT_firestore.rules
+.agents/
+.claude/
+skills-lock.json
