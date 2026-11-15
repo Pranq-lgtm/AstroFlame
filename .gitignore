@@ -11,3 +11,5 @@ DRAFT_firestore.rules
 .agents/
 .claude/
 skills-lock.json
+.firebase/
+
