@@ -12,4 +12,6 @@ DRAFT_firestore.rules
 .claude/
 skills-lock.json
 .firebase/
+out/
+
 
