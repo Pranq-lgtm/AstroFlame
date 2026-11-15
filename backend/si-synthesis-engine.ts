@@ -1,5 +1,5 @@
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
-import { PSI_DATASETS, PERSONA_LENSES, type PersonaRoleId } from './psi-datasets';
+import { PSI_DATASETS, PERSONA_LENSES, type PersonaRoleId } from './psi-datasets.ts';
 
 export interface TelemetryActionPreset {
   id: string;

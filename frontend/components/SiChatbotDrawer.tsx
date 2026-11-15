@@ -147,7 +147,10 @@ Ask me about **low-velocity microgravity ventilation (BASS-II)**, **34% O₂ Lun
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/si/chat', {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
+        ? `${process.env.NEXT_PUBLIC_BACKEND_URL.replace(/\/$/, '')}/api/si/chat`
+        : '/api/si/chat';
+      const response = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
