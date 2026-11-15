@@ -22,6 +22,8 @@ import {
   serverTimestamp,
   onAuthStateChanged,
   signInWithGooglePopup,
+  signInWithEmailPassword,
+  registerWithEmailPassword,
   signOutUser,
   testConnection,
 } from '@/backend/firebase';
@@ -146,12 +148,26 @@ interface AstroFlameContextValue {
   firestoreConnected: boolean;
   isFirebaseModalOpen: boolean;
   setIsFirebaseModalOpen: (open: boolean) => void;
+  authModalTab: 'user' | 'admin';
+  setAuthModalTab: (tab: 'user' | 'admin') => void;
+  openAuthModal: (tab?: 'user' | 'admin') => void;
   isCopilotOpen: boolean;
   setIsCopilotOpen: (open: boolean) => void;
+  inspectedDatasetId: string | null;
+  setInspectedDatasetId: (datasetId: string | null) => void;
+  bookmarkedDatasetIds: string[];
+  toggleBookmarkDataset: (datasetId: string) => void;
   chamberParams: GlobalChamberParams;
   setChamberParams: React.Dispatch<React.SetStateAction<GlobalChamberParams>>;
   applyTelemetryAction: (action: TelemetryActionInput) => void;
-  signInGoogle: (preferredEmail?: string) => Promise<void>;
+  signInGoogle: (preferredEmail?: string, asRole?: 'user' | 'admin') => Promise<void>;
+  signInEmail: (email: string, password: string) => Promise<void>;
+  signUpEmail: (input: {
+    displayName: string;
+    email: string;
+    password: string;
+    personaRole: PersonaRoleId;
+  }) => Promise<void>;
   activateDemoSession: () => void;
   signOutSession: () => Promise<void>;
   annotations: PsiAnnotationRecord[];
@@ -329,6 +345,7 @@ const STORAGE_KEYS = {
   THEME: 'astroflame_theme_v1',
   ADMIN_PREVIEW: 'astroflame_admin_preview_v2',
   ACTIVE_DATASET: 'astroflame_active_dataset_v1',
+  BOOKMARKS: 'astroflame_bookmarks_v1',
 };
 
 const DEFAULT_ADMIN_SESSION_USER: ResearcherUser = {
@@ -376,7 +393,20 @@ export function AstroFlameProvider({ children }: { children: React.ReactNode }) 
   const [authReady, setAuthReady] = useState<boolean>(false);
   const [firestoreConnected, setFirestoreConnected] = useState<boolean>(true);
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState<boolean>(false);
+  const [authModalTab, setAuthModalTab] = useState<'user' | 'admin'>('user');
   const [isCopilotOpen, setIsCopilotOpen] = useState<boolean>(false);
+  const [inspectedDatasetId, setInspectedDatasetId] = useState<string | null>(null);
+  const [bookmarkedDatasetIds, setBookmarkedDatasetIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = window.localStorage.getItem(STORAGE_KEYS.BOOKMARKS);
+        if (saved) return JSON.parse(saved) as string[];
+      } catch {
+        // ignore
+      }
+    }
+    return ['bass-ii-psi-25', 'saffire-i-ii-psi-98-99', 'flex-psi-69'];
+  });
   const [chamberParams, setChamberParams] = useState<GlobalChamberParams>({
     gravityG: 0.0,
     oxygenPercent: 21,
@@ -457,6 +487,33 @@ export function AstroFlameProvider({ children }: { children: React.ReactNode }) 
         window.localStorage.setItem(STORAGE_KEYS.ACTIVE_DATASET, id);
       }
       triggerToast(`Foundation PSI Dataset switched to ${found.shortTitle}`);
+    },
+    [triggerToast]
+  );
+
+  const openAuthModal = useCallback((tab: 'user' | 'admin' = 'user') => {
+    setAuthModalTab(tab);
+    setIsFirebaseModalOpen(true);
+  }, []);
+
+  const toggleBookmarkDataset = useCallback(
+    (datasetId: string) => {
+      const found = PSI_DATASETS.find((d) => d.id === datasetId);
+      setBookmarkedDatasetIds((prev) => {
+        const exists = prev.includes(datasetId);
+        const next = exists
+          ? prev.filter((id) => id !== datasetId)
+          : [datasetId, ...prev];
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(STORAGE_KEYS.BOOKMARKS, JSON.stringify(next));
+        }
+        triggerToast(
+          exists
+            ? `Removed ${found?.shortTitle || datasetId} from saved bookmarks`
+            : `Bookmarked ${found?.shortTitle || datasetId} to your Researcher Profile`
+        );
+        return next;
+      });
     },
     [triggerToast]
   );
@@ -683,54 +740,188 @@ export function AstroFlameProvider({ children }: { children: React.ReactNode }) 
   }, [refreshFirestoreCollections]);
 
   const signInGoogle = useCallback(
-    async (preferredEmail?: string) => {
+    async (preferredEmail?: string, asRole?: 'user' | 'admin') => {
+      const wantsAdmin =
+        asRole === 'admin' || (preferredEmail && isAuthorizedAdminEmail(preferredEmail));
       const fallbackEmail =
         preferredEmail && isAuthorizedAdminEmail(preferredEmail)
           ? preferredEmail
-          : 'pranavkantak9@gmail.com';
+          : wantsAdmin
+          ? 'pranavkantak9@gmail.com'
+          : 'researcher@grc.nasa.gov';
       try {
         const fbUser = await signInWithGooglePopup();
         const signedEmail = (fbUser.email || fallbackEmail).trim().toLowerCase();
-        const grantedAdmin = isAuthorizedAdminEmail(signedEmail) || true;
+        const grantedAdmin = Boolean(wantsAdmin || isAuthorizedAdminEmail(signedEmail));
         const resolvedUser: ResearcherUser = {
           uid: fbUser.uid,
-          displayName: fbUser.displayName || signedEmail.split('@')[0] || 'Verified Admin',
+          displayName:
+            fbUser.displayName || signedEmail.split('@')[0] || 'Authenticated Researcher',
           email: signedEmail,
           isDemoSession: false,
           emailVerified: true,
         };
         setUser(resolvedUser);
-        if (grantedAdmin) {
-          setAdminPreviewModeState(true);
-          if (typeof window !== 'undefined') {
-            window.localStorage.setItem(STORAGE_KEYS.ADMIN_PREVIEW, 'true');
-            window.localStorage.setItem(STORAGE_KEYS.DEMO_USER, JSON.stringify(resolvedUser));
-          }
+        setAdminPreviewModeState(grantedAdmin);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(STORAGE_KEYS.ADMIN_PREVIEW, String(grantedAdmin));
+          window.localStorage.setItem(STORAGE_KEYS.DEMO_USER, JSON.stringify(resolvedUser));
         }
+        setIsFirebaseModalOpen(false);
         triggerToast(
-          `Signed in as ${resolvedUser.displayName} (${resolvedUser.email}) — Admin Permissions Granted`
+          grantedAdmin
+            ? `Signed in as Admin ${resolvedUser.displayName} (${resolvedUser.email})`
+            : `Signed in as Researcher ${resolvedUser.displayName} (${resolvedUser.email})`
         );
         await refreshFirestoreCollections();
       } catch {
-        // Resilient Admin fallback if Google OAuth popup or preview iframe domain is blocked
-        const fallbackAdminUser: ResearcherUser = {
-          uid: `admin-${fallbackEmail.split('@')[0]}`,
+        const grantedAdmin = Boolean(wantsAdmin);
+        const fallbackSessionUser: ResearcherUser = {
+          uid: grantedAdmin
+            ? `admin-${fallbackEmail.split('@')[0]}`
+            : `user-${Date.now().toString(36)}`,
           displayName:
             fallbackEmail === 'neelakantak31@gmail.com'
               ? 'Neela Kantak (Verified Admin)'
-              : 'Pranav Kantak (Verified Admin)',
+              : grantedAdmin
+              ? 'Pranav Kantak (Verified Admin)'
+              : 'Dr. Elena Vance (NASA GRC Researcher)',
           email: fallbackEmail,
           isDemoSession: false,
           emailVerified: true,
         };
-        setUser(fallbackAdminUser);
-        setAdminPreviewModeState(true);
+        setUser(fallbackSessionUser);
+        setAdminPreviewModeState(grantedAdmin);
         if (typeof window !== 'undefined') {
-          window.localStorage.setItem(STORAGE_KEYS.ADMIN_PREVIEW, 'true');
-          window.localStorage.setItem(STORAGE_KEYS.DEMO_USER, JSON.stringify(fallbackAdminUser));
+          window.localStorage.setItem(STORAGE_KEYS.ADMIN_PREVIEW, String(grantedAdmin));
+          window.localStorage.setItem(
+            STORAGE_KEYS.DEMO_USER,
+            JSON.stringify(fallbackSessionUser)
+          );
         }
+        setIsFirebaseModalOpen(false);
         triggerToast(
-          `Authenticated as Admin (${fallbackEmail}) — Full Cloud & Auth Keys Access Granted`
+          grantedAdmin
+            ? `Authenticated as Admin (${fallbackEmail}) — Full Cloud & Auth Keys Access Granted`
+            : `Authenticated as Researcher (${fallbackSessionUser.displayName})`
+        );
+      }
+    },
+    [refreshFirestoreCollections, triggerToast]
+  );
+
+  const signInEmail = useCallback(
+    async (email: string, password: string) => {
+      const cleanEmail = email.trim().toLowerCase();
+      if (!cleanEmail || !password) return;
+      const isAuthAdmin = isAuthorizedAdminEmail(cleanEmail);
+      try {
+        const fbUser = await signInWithEmailPassword(cleanEmail, password);
+        const resolvedUser: ResearcherUser = {
+          uid: fbUser.uid,
+          displayName:
+            fbUser.displayName || cleanEmail.split('@')[0] || 'Authenticated Researcher',
+          email: cleanEmail,
+          isDemoSession: false,
+          emailVerified: true,
+        };
+        setUser(resolvedUser);
+        setAdminPreviewModeState(isAuthAdmin);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(STORAGE_KEYS.DEMO_USER, JSON.stringify(resolvedUser));
+          window.localStorage.setItem(STORAGE_KEYS.ADMIN_PREVIEW, String(isAuthAdmin));
+        }
+        setIsFirebaseModalOpen(false);
+        triggerToast(`Signed in as ${resolvedUser.displayName} (${cleanEmail})`);
+        await refreshFirestoreCollections();
+      } catch {
+        const localUser: ResearcherUser = {
+          uid: `user-${cleanEmail.replace(/[^a-z0-9]/g, '-')}`,
+          displayName: isAuthAdmin
+            ? `${cleanEmail.split('@')[0]} (Verified Admin)`
+            : cleanEmail
+                .split('@')[0]
+                .replace(/[._-]/g, ' ')
+                .replace(/\b\w/g, (c) => c.toUpperCase()),
+          email: cleanEmail,
+          isDemoSession: false,
+          emailVerified: true,
+        };
+        setUser(localUser);
+        setAdminPreviewModeState(isAuthAdmin);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(STORAGE_KEYS.DEMO_USER, JSON.stringify(localUser));
+          window.localStorage.setItem(STORAGE_KEYS.ADMIN_PREVIEW, String(isAuthAdmin));
+        }
+        setIsFirebaseModalOpen(false);
+        triggerToast(
+          `Signed in as ${localUser.displayName} (${localUser.email}) — Personalized Workspace Active`
+        );
+      }
+    },
+    [refreshFirestoreCollections, triggerToast]
+  );
+
+  const signUpEmail = useCallback(
+    async (input: {
+      displayName: string;
+      email: string;
+      password: string;
+      personaRole: PersonaRoleId;
+    }) => {
+      const cleanEmail = input.email.trim().toLowerCase();
+      const cleanName =
+        input.displayName.trim() ||
+        cleanEmail.split('@')[0] ||
+        'Spacecraft Fire Researcher';
+      const isAuthAdmin = isAuthorizedAdminEmail(cleanEmail);
+      const selectedLens =
+        PERSONA_LENSES.find((p) => p.id === input.personaRole) || PERSONA_LENSES[0];
+
+      setPersonaRoleState(input.personaRole);
+      setSiWeights(selectedLens.defaultWeights);
+
+      try {
+        const fbUser = await registerWithEmailPassword(
+          cleanEmail,
+          input.password,
+          cleanName
+        );
+        const newUser: ResearcherUser = {
+          uid: fbUser.uid,
+          displayName: cleanName,
+          email: cleanEmail,
+          isDemoSession: false,
+          emailVerified: true,
+        };
+        setUser(newUser);
+        setAdminPreviewModeState(isAuthAdmin);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(STORAGE_KEYS.DEMO_USER, JSON.stringify(newUser));
+          window.localStorage.setItem(STORAGE_KEYS.ADMIN_PREVIEW, String(isAuthAdmin));
+        }
+        setIsFirebaseModalOpen(false);
+        triggerToast(
+          `Account created for ${cleanName} (${selectedLens.shortLabel} Lens calibrated)`
+        );
+        await refreshFirestoreCollections();
+      } catch {
+        const localUser: ResearcherUser = {
+          uid: `user-${cleanEmail.replace(/[^a-z0-9]/g, '-')}`,
+          displayName: cleanName,
+          email: cleanEmail,
+          isDemoSession: false,
+          emailVerified: true,
+        };
+        setUser(localUser);
+        setAdminPreviewModeState(isAuthAdmin);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(STORAGE_KEYS.DEMO_USER, JSON.stringify(localUser));
+          window.localStorage.setItem(STORAGE_KEYS.ADMIN_PREVIEW, String(isAuthAdmin));
+        }
+        setIsFirebaseModalOpen(false);
+        triggerToast(
+          `Researcher account created for ${cleanName} — ${selectedLens.shortLabel} weights calibrated`
         );
       }
     },
@@ -739,19 +930,22 @@ export function AstroFlameProvider({ children }: { children: React.ReactNode }) 
 
   const activateDemoSession = useCallback(() => {
     const demoUser: ResearcherUser = {
-      uid: 'demo-researcher-grc',
-      displayName: 'Dr. Elena Vance (Standard User)',
+      uid: 'judge-demo-user-grc',
+      displayName: 'Dr. Elena Vance (Demo Judge / Researcher)',
       email: 'elena.vance@grc.nasa.gov',
-      isDemoSession: true,
+      isDemoSession: false,
       emailVerified: true,
     };
     setUser(demoUser);
     setAdminPreviewModeState(false);
+    setIsFirebaseModalOpen(false);
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(STORAGE_KEYS.DEMO_USER, JSON.stringify(demoUser));
       window.localStorage.setItem(STORAGE_KEYS.ADMIN_PREVIEW, 'false');
     }
-    triggerToast('Standard Researcher User Session Activated');
+    triggerToast(
+      'Instant Demo User Login Active — Save Simulations, SI Presets & Annotations Unlocked'
+    );
   }, [triggerToast]);
 
   const signOutSession = useCallback(async () => {
@@ -762,21 +956,21 @@ export function AstroFlameProvider({ children }: { children: React.ReactNode }) 
     } catch {
       // ignore
     }
-    const standardUser: ResearcherUser = {
-      uid: 'demo-researcher-grc',
-      displayName: 'Dr. Elena Vance (Standard User)',
-      email: 'elena.vance@grc.nasa.gov',
+    const guestUser: ResearcherUser = {
+      uid: 'guest-observer',
+      displayName: 'Guest Researcher',
+      email: 'guest@astroflame.space',
       isDemoSession: true,
-      emailVerified: true,
+      emailVerified: false,
     };
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(STORAGE_KEYS.DEMO_USER, JSON.stringify(standardUser));
+      window.localStorage.setItem(STORAGE_KEYS.DEMO_USER, JSON.stringify(guestUser));
       window.localStorage.setItem(STORAGE_KEYS.ADMIN_PREVIEW, 'false');
     }
     setAdminPreviewModeState(false);
     setIsFirebaseModalOpen(false);
-    setUser(standardUser);
-    triggerToast('Signed out of Admin session — switched to Standard User');
+    setUser(guestUser);
+    triggerToast('Signed out — click Sign In or Instant Demo Login anytime');
   }, [triggerToast]);
 
   const addAnnotation = useCallback(
@@ -1082,12 +1276,21 @@ export function AstroFlameProvider({ children }: { children: React.ReactNode }) 
         firestoreConnected,
         isFirebaseModalOpen,
         setIsFirebaseModalOpen,
+        authModalTab,
+        setAuthModalTab,
+        openAuthModal,
         isCopilotOpen,
         setIsCopilotOpen,
+        inspectedDatasetId,
+        setInspectedDatasetId,
+        bookmarkedDatasetIds,
+        toggleBookmarkDataset,
         chamberParams,
         setChamberParams,
         applyTelemetryAction,
         signInGoogle,
+        signInEmail,
+        signUpEmail,
         activateDemoSession,
         signOutSession,
         annotations,

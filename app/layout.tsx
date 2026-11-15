@@ -47,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body
         suppressHydrationWarning
-        className="bg-slate-100 text-slate-900 dark:bg-[#050814] dark:text-slate-100 font-sans antialiased transition-colors duration-200"
+        className="min-h-dvh overflow-x-hidden overflow-y-auto flex flex-col bg-slate-100 text-slate-900 dark:bg-[#050814] dark:text-slate-100 font-sans antialiased transition-colors duration-200"
       >
         <AstroFlameProvider>
           <AppShell>{children}</AppShell>

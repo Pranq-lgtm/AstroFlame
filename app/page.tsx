@@ -43,6 +43,9 @@ export default function MissionControlPage() {
     personaRole,
     activeDataset,
     setActiveDatasetId,
+    setInspectedDatasetId,
+    bookmarkedDatasetIds,
+    toggleBookmarkDataset,
     siWeights,
     setSiWeights,
     addRankingPreset,
@@ -242,12 +245,12 @@ export default function MissionControlPage() {
     .join(' ');
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-12">
       {/* ===================================================================== */}
       {/* COCKPIT ARCHITECTURE MATCHING Dashboard_UI (LEFT, CENTER, RIGHT, BOTTOM) */}
       {/* ===================================================================== */}
-      <section className="space-y-3">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+      <section className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
           {/* ================================================================= */}
           {/* LEFT PANEL (3 Cols): Environment Configurations & Visible Sliders */}
           {/* ================================================================= */}
@@ -975,25 +978,25 @@ export default function MissionControlPage() {
       {/* ===================================================================== */}
       {/* SECTION 01: SI MULTI-ATTRIBUTE DATASET RANKING ENGINE (FOUNDATION)    */}
       {/* ===================================================================== */}
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <section className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-              01. Super Intelligence (SI) Multi-Attribute Dataset Ranking Engine (Platform Foundation)
+              01. Super Intelligence (SI) Multi-Attribute Dataset Ranking Engine
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-              Click <strong className="text-amber-600 dark:text-amber-400">&ldquo;Load into Telemetry Cockpit&rdquo;</strong> on any investigation to drive all Mission Control charts, radial gauges, and run playback from that NASA PSI dataset.
+              Showing Core 8 Fire-Safety Anchor datasets by default. Click <strong className="text-sky-600 dark:text-sky-400">&ldquo;Inspect Telemetry &rarr;&rdquo;</strong> for full methodology.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center p-1 bg-slate-200/80 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center p-1 bg-slate-200/80 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl">
               {(['All', 'Prevention', 'Detection', 'Suppression'] as const).map((pillar) => (
                 <button
                   key={pillar}
                   type="button"
                   onClick={() => setPillarFilter(pillar)}
-                  className={`px-2.5 py-1 text-xs font-mono rounded-md transition-colors whitespace-nowrap shrink-0 ${
+                  className={`px-2.5 py-1 text-xs font-mono rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     pillarFilter === pillar
                       ? 'bg-sky-600 text-white dark:bg-sky-500 dark:text-slate-950 font-semibold'
                       : 'text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -1004,34 +1007,21 @@ export default function MissionControlPage() {
               ))}
             </div>
 
-            <div className="flex items-center p-1 bg-slate-200/80 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg">
-              <button
-                type="button"
-                onClick={() => setCatalogScope('core8')}
-                className={`px-2.5 py-1 text-xs font-mono rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                  catalogScope === 'core8'
-                    ? 'bg-amber-600 text-white dark:bg-amber-500 dark:text-slate-950 font-semibold'
-                    : 'text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Core 8 Anchors
-              </button>
-              <button
-                type="button"
-                onClick={() => setCatalogScope('all26')}
-                className={`px-2.5 py-1 text-xs font-mono rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                  catalogScope === 'all26'
-                    ? 'bg-amber-600 text-white dark:bg-amber-500 dark:text-slate-950 font-semibold'
-                    : 'text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                All 24 PSI + 2 Lunar ({PSI_DATASETS.length})
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setCatalogScope((prev) => (prev === 'core8' ? 'all26' : 'core8'))
+              }
+              className="px-3.5 py-1.5 text-xs font-mono font-semibold rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition-colors cursor-pointer"
+            >
+              {catalogScope === 'core8'
+                ? 'Show All 24 PSI Datasets'
+                : 'Show Core 8 Anchor Datasets'}
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
           {/* Left Column (4 cols): 5 High-Visibility Weight Sliders + Radar SVG */}
           <div className="lg:col-span-4 rounded-xl bg-white dark:bg-[#090e21] border border-slate-300 dark:border-slate-800 p-5 space-y-5 shadow-sm">
             <div className="flex items-center justify-between">
@@ -1214,109 +1204,99 @@ export default function MissionControlPage() {
             </div>
           </div>
 
-          {/* Right Column (8 cols): Ranked PSI Dataset Table with Foundation Loader */}
+          {/* Right Column (8 cols): Decluttered Ranked PSI Dataset Cards/Rows with Progressive Disclosure */}
           <div className="lg:col-span-8 space-y-4">
-            <div className="rounded-xl bg-white dark:bg-[#090e21] border border-slate-300 dark:border-slate-800 overflow-hidden shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950/70 text-[11px] font-mono text-slate-600 dark:text-slate-400">
-                      <th className="py-3 px-4">RANK / PSI ID</th>
-                      <th className="py-3 px-4">INVESTIGATION &amp; COCKPIT BINDING</th>
-                      <th className="py-3 px-4">TESTED ENVELOPE</th>
-                      <th className="py-3 px-4">ACTIONABLE SI SAFETY RULE &amp; ROLE INSIGHT</th>
-                      <th className="py-3 px-4 text-right">SI SCORE</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/70 text-xs">
-                    {rankedDatasets.map(({ dataset, weightedScore }, idx) => {
-                      const isFoundationActive = dataset.id === activeDataset.id;
-                      return (
-                        <tr
-                          key={dataset.id}
-                          className={`transition-colors align-top ${
-                            isFoundationActive
-                              ? 'bg-sky-50/70 dark:bg-sky-950/25'
-                              : 'hover:bg-slate-50 dark:hover:bg-slate-900/60'
-                          }`}
-                        >
-                          <td className="py-3.5 px-4 font-mono whitespace-nowrap">
-                            <div className="font-bold text-slate-900 dark:text-white tabular-nums">
-                              #{String(idx + 1).padStart(2, '0')}
-                            </div>
-                            <div className="text-sky-700 dark:text-sky-400 mt-0.5">{dataset.psiId}</div>
-                            {dataset.coolFlameObserved && (
-                              <div className="text-[10px] text-purple-700 dark:text-purple-400 mt-0.5">
-                                500–1000 K Cool Flame
-                              </div>
-                            )}
-                          </td>
+            {rankedDatasets.map(({ dataset, weightedScore }, idx) => {
+              const isFoundationActive = dataset.id === activeDataset.id;
+              const isBookmarked = bookmarkedDatasetIds.includes(dataset.id);
+              const words = dataset.actionableSafetyRule.trim().split(/\s+/);
+              const shortTakeaway =
+                words.length <= 14
+                  ? dataset.actionableSafetyRule
+                  : `${words.slice(0, 14).join(' ')}...`;
 
-                          <td className="py-3.5 px-4 space-y-1.5">
-                            <div className="font-semibold text-slate-900 dark:text-white">
-                              {dataset.shortTitle}
-                            </div>
-                            <div className="text-slate-600 dark:text-slate-400 font-mono text-[11px]">
-                              {dataset.pillar} · {dataset.facility} · DOI: {dataset.doi}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setActiveDatasetId(dataset.id);
-                                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                                }}
-                                className={`px-2.5 py-1 text-[11px] font-mono rounded-md border transition-colors inline-flex items-center gap-1 ${
-                                  isFoundationActive
-                                    ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold'
-                                    : 'bg-slate-100 dark:bg-slate-900 text-sky-700 dark:text-sky-300 border-slate-300 dark:border-slate-700 hover:border-sky-400'
-                                }`}
-                              >
-                                <Database className="w-3 h-3" />
-                                {isFoundationActive
-                                  ? 'Active in Telemetry Cockpit'
-                                  : 'Load into Telemetry Cockpit'}
-                              </button>
-                              <a
-                                href={dataset.officialUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-[11px] font-mono text-sky-700 dark:text-sky-400 hover:underline inline-flex items-center gap-1"
-                              >
-                                NASA PSI
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            </div>
-                          </td>
+              return (
+                <div
+                  key={dataset.id}
+                  className={`rounded-2xl bg-white dark:bg-[#090e21] border p-5 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm ${
+                    isFoundationActive
+                      ? 'border-amber-400 ring-1 ring-amber-400/30'
+                      : 'border-slate-200 dark:border-slate-800 hover:border-sky-500/40'
+                  }`}
+                >
+                  <div className="space-y-2 min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+                      <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-[#050814] border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
+                        #{String(idx + 1).padStart(2, '0')}
+                      </span>
+                      <span className="font-bold text-sky-600 dark:text-sky-400">
+                        {dataset.psiId} / {dataset.shortTitle}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[11px]">
+                        {dataset.pillar}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-[#050814] border border-slate-300 dark:border-slate-800 text-[11px] text-slate-500">
+                        {dataset.facility}
+                      </span>
+                    </div>
 
-                          <td className="py-3.5 px-4 font-mono text-[11px] text-slate-700 dark:text-slate-300 space-y-0.5">
-                            <div>{dataset.oxygenRange}</div>
-                            <div className="text-slate-500 dark:text-slate-400">{dataset.pressureRange}</div>
-                            <div className="text-emerald-700 dark:text-emerald-400">{dataset.airflowRange}</div>
-                          </td>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-1 font-mono">
+                      {shortTakeaway}
+                    </p>
 
-                          <td className="py-3.5 px-4 max-w-md space-y-1.5">
-                            <div className="text-slate-800 dark:text-slate-200 leading-relaxed">
-                              {dataset.actionableSafetyRule}
-                            </div>
-                            <div className="text-[11px] text-sky-700 dark:text-sky-300/90 font-mono">
-                              [{currentLens.shortLabel}]: {dataset.personaInsights[personaRole]}
-                            </div>
-                          </td>
+                    {/* Composite SI Score Bar */}
+                    <div className="flex items-center gap-3 pt-0.5">
+                      <div className="flex-1 h-1.5 rounded-full bg-slate-200 dark:bg-[#050814] overflow-hidden max-w-xs">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-sky-400 to-amber-400"
+                          style={{ width: `${Math.min(100, Math.max(12, weightedScore))}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-mono font-bold text-sky-600 dark:text-sky-400 tabular-nums">
+                        SI {weightedScore.toFixed(1)}
+                      </span>
+                    </div>
+                  </div>
 
-                          <td className="py-3.5 px-4 text-right font-mono tabular-nums">
-                            <span className="text-base font-bold text-sky-700 dark:text-sky-400">
-                              {weightedScore.toFixed(1)}
-                            </span>
-                            <div className="text-[10px] text-slate-500 dark:text-slate-400">/ 100.0</div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => toggleBookmarkDataset(dataset.id)}
+                      className={`px-2.5 py-1.5 text-xs font-mono rounded-lg border transition-colors cursor-pointer ${
+                        isBookmarked
+                          ? 'bg-amber-500/20 border-amber-400 text-amber-500 dark:text-amber-300'
+                          : 'bg-slate-100 dark:bg-[#050814] border-slate-300 dark:border-slate-800 text-slate-400'
+                      }`}
+                      title="Bookmark Dataset"
+                    >
+                      ★
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveDatasetId(dataset.id);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className={`px-3 py-1.5 text-xs font-mono rounded-lg border transition-colors inline-flex items-center gap-1 cursor-pointer ${
+                        isFoundationActive
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold'
+                          : 'bg-slate-100 dark:bg-[#050814] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:border-sky-400'
+                      }`}
+                    >
+                      <Database className="w-3 h-3" />
+                      <span>{isFoundationActive ? 'Active' : 'Load Cockpit'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInspectedDatasetId(dataset.id)}
+                      className="px-3 py-1.5 text-xs font-mono font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white dark:bg-sky-400 dark:text-slate-950 transition-colors cursor-pointer"
+                    >
+                      Inspect Telemetry &rarr;
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>

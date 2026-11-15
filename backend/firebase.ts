@@ -5,6 +5,9 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   type Auth,
@@ -220,6 +223,30 @@ export async function signInWithGooglePopup(): Promise<User> {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   const result = await signInWithPopup(auth, provider);
+  return result.user;
+}
+
+export async function signInWithEmailPassword(
+  email: string,
+  password: string
+): Promise<User> {
+  const result = await signInWithEmailAndPassword(auth, email.trim(), password);
+  return result.user;
+}
+
+export async function registerWithEmailPassword(
+  email: string,
+  password: string,
+  displayName?: string
+): Promise<User> {
+  const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  if (displayName && displayName.trim()) {
+    try {
+      await updateProfile(result.user, { displayName: displayName.trim() });
+    } catch {
+      // ignore profile update warning
+    }
+  }
   return result.user;
 }
 
