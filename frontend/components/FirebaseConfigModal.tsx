@@ -191,10 +191,11 @@ export default function FirebaseConfigModal() {
 
           <div>
             <label className="block text-xs font-mono text-slate-600 dark:text-slate-400 mb-1">
-              firestoreDatabaseId (Provisioned Enterprise DB ID)
+              firestoreDatabaseId (Leave blank for astroflame-ddc5c default DB)
             </label>
             <input
               type="text"
+              placeholder="(default)"
               value={firestoreDatabaseId}
               onChange={(e) => setFirestoreDatabaseId(e.target.value)}
               className="w-full px-3 py-2 text-xs font-mono bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 focus:outline-none focus:border-sky-500"

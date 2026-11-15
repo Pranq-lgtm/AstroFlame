@@ -188,6 +188,33 @@ export default function AdminCloudConsolePage() {
     }
   };
 
+  const handleSeedAllCollections = async () => {
+    const ds = PSI_DATASETS[0];
+    await addAnnotation({
+      datasetId: ds.id,
+      datasetTitle: ds.shortTitle,
+      pillarTag: ds.pillar,
+      hypothesisNote:
+        'BASS-II (PSI-25) baseline initialized: forced duct flow cut to 0.0 cm/s extinguishes sheltered PMMA wake flame.',
+    });
+    await addSimulation({
+      title: 'Lunar Gateway 34% O2 @ 8.2 psia Baseline (0.16g)',
+      presetName: 'Lunar Surface Habitat (FM2)',
+      gravityG: 0.16,
+      oxygenPercent: 34,
+      pressurePsia: 8.2,
+      airflowCmPerSec: 12.0,
+      eFieldKv: 0.0,
+      ppO2Psia: 2.79,
+      flammabilityRiskIndex: 82,
+      coolFlameWarning: false,
+    });
+    await addRankingPreset('NASA GRC Exploration Fire Safety Baseline');
+    triggerToast(
+      'Initialized psi_annotations, saved_simulations, and custom_rankings collections!'
+    );
+  };
+
   return (
     <div className="space-y-8">
       {/* Admin Header */}
@@ -207,6 +234,14 @@ export default function AdminCloudConsolePage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => void handleSeedAllCollections()}
+            className="px-3.5 py-2 text-xs font-mono bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Initialize All 3 Collections
+          </button>
           <button
             type="button"
             onClick={() => setIsFirebaseModalOpen(true)}

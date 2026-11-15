@@ -27,6 +27,7 @@ import {
   getDatasetTelemetryProfile,
   type SafetyPillar,
 } from '@/backend/psi-datasets';
+import { buildDeterministicSynthesis } from '@/backend/si-synthesis-engine';
 import { useAstroFlame } from '@/frontend/context/astroflame-context';
 import ThreeFlameChamber from '@/frontend/components/ThreeFlameChamber';
 
@@ -158,7 +159,8 @@ export default function MissionControlPage() {
     if (customPrompt) setQueryInput(customPrompt);
     setIsSynthesizing(true);
     try {
-      const res = await fetch('/api/si-synthesis', {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+      const res = await fetch(`${backendUrl}/api/si-synthesis`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -166,17 +168,28 @@ export default function MissionControlPage() {
           personaRole,
         }),
       });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
       const data = await res.json();
       if (data.text) {
         setSynthesisOutput({
           text: data.text,
-          engineMode: data.engineMode || 'Gemini 4 Hydrogen (gemini-4-hydrogen • ThinkingLevel.HIGH)',
+          engineMode:
+            data.engineMode ||
+            'Gemini 4 Hydrogen (gemini-4-hydrogen • ThinkingLevel.HIGH)',
           thinkingLevel: data.thinkingLevel || 'ThinkingLevel.HIGH',
           citedDatasets: data.citedDatasets || [],
         });
       }
     } catch {
-      // keep existing synthesis
+      const fallback = buildDeterministicSynthesis(activePrompt, personaRole);
+      setSynthesisOutput({
+        text: fallback.synthesis,
+        engineMode: fallback.engineMode,
+        thinkingLevel: 'ThinkingLevel.HIGH (gemini-4-hydrogen)',
+        citedDatasets: fallback.citedDatasets,
+      });
     } finally {
       setIsSynthesizing(false);
     }

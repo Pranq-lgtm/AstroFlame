@@ -313,14 +313,7 @@ function getGeminiClient(): GoogleGenAI | null {
   if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
     return null;
   }
-  return new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
+  return new GoogleGenAI({ apiKey });
 }
 
 export async function runSiSynthesisQuery(prompt: string, personaRole: PersonaRoleId) {

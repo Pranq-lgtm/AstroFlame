@@ -81,20 +81,24 @@ export function getActiveFirebaseConfig(): CustomFirebaseCredentials {
       const saved = window.localStorage.getItem(CUSTOM_CONFIG_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as Partial<CustomFirebaseCredentials>;
-        if (parsed.apiKey && parsed.projectId && parsed.appId) {
+        const isStaleLegacyProject =
+          parsed.projectId === 'elite-approach-801dl' ||
+          (parsed.firestoreDatabaseId && parsed.firestoreDatabaseId.startsWith('ai-studio-'));
+
+        if (isStaleLegacyProject) {
+          window.localStorage.removeItem(CUSTOM_CONFIG_STORAGE_KEY);
+        } else if (parsed.apiKey && parsed.projectId && parsed.appId) {
           return {
             apiKey: parsed.apiKey,
             authDomain: parsed.authDomain || `${parsed.projectId}.firebaseapp.com`,
             projectId: parsed.projectId,
             appId: parsed.appId,
-            storageBucket:
-              parsed.storageBucket || defaultFirebaseConfig.storageBucket,
+            storageBucket: parsed.storageBucket || defaultFirebaseConfig.storageBucket,
             messagingSenderId:
               parsed.messagingSenderId || defaultFirebaseConfig.messagingSenderId,
-            measurementId:
-              parsed.measurementId || defaultFirebaseConfig.measurementId,
+            measurementId: parsed.measurementId || defaultFirebaseConfig.measurementId,
             firestoreDatabaseId:
-              parsed.firestoreDatabaseId || defaultFirebaseConfig.firestoreDatabaseId,
+              parsed.firestoreDatabaseId ?? defaultFirebaseConfig.firestoreDatabaseId,
           };
         }
       }
@@ -112,11 +116,12 @@ export function getActiveFirebaseConfig(): CustomFirebaseCredentials {
     storageBucket:
       process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || defaultFirebaseConfig.storageBucket,
     messagingSenderId:
-      process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || defaultFirebaseConfig.messagingSenderId,
+      process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ||
+      defaultFirebaseConfig.messagingSenderId,
     measurementId:
       process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || defaultFirebaseConfig.measurementId,
     firestoreDatabaseId:
-      process.env.NEXT_PUBLIC_FIRESTORE_DATABASE_ID ||
+      process.env.NEXT_PUBLIC_FIRESTORE_DATABASE_ID ??
       defaultFirebaseConfig.firestoreDatabaseId,
   };
 }
@@ -131,22 +136,30 @@ export function saveCustomFirebaseConfig(config: CustomFirebaseCredentials | nul
 }
 
 const activeConfig = getActiveFirebaseConfig();
-const targetDbId = activeConfig.firestoreDatabaseId || defaultFirebaseConfig.firestoreDatabaseId;
+const targetDbId =
+  activeConfig.firestoreDatabaseId ?? defaultFirebaseConfig.firestoreDatabaseId;
 
 export const app: FirebaseApp =
   getApps().length === 0 ? initializeApp(activeConfig) : getApp();
 
-function createResilientFirestore(firebaseApp: FirebaseApp, databaseId: string): Firestore {
+function createResilientFirestore(firebaseApp: FirebaseApp, databaseId?: string): Firestore {
+  const normalizedDbId = databaseId ? databaseId.trim() : '';
+  const useDefaultDb = !normalizedDbId || normalizedDbId === '(default)';
   try {
+    if (useDefaultDb) {
+      return initializeFirestore(firebaseApp, {
+        experimentalForceLongPolling: true,
+      });
+    }
     return initializeFirestore(
       firebaseApp,
       {
         experimentalForceLongPolling: true,
       },
-      databaseId
+      normalizedDbId
     );
   } catch {
-    return getFirestore(firebaseApp, databaseId);
+    return useDefaultDb ? getFirestore(firebaseApp) : getFirestore(firebaseApp, normalizedDbId);
   }
 }
 

@@ -1,8 +1,12 @@
 # AstroFlame — SI-Powered Microgravity Fire Safety Dashboard
 
-**2026 NASA Space Apps Challenge**: [Flame in Freefall: SI-Powered Fire Safety Insights from Microgravity Combustion Data](https://www.spaceappschallenge.org/2026/challenges/flame-in-freefall/)
+## About
 
-AstroFlame is a full-stack aerospace telemetry and synthesis platform that summarizes, ranks, and interprets decades of microgravity (`0.00g`) and partial-gravity (`0.16g` Lunar / `0.38g` Martian) combustion experiments from NASA's [Physical Sciences Informatics (PSI) Data Repository](https://psi.nasa.gov/physci/repo) and the [NASA Glenn Combustion Science Program](https://www.nasa.gov/glenn/glenn-expertise-space-exploration/physical-sciences-program/combustion-science/).
+- **Live Web Application**: [**https://astroflame-ddc5c.web.app/**](https://astroflame-ddc5c.web.app/)
+- **Challenge**: 2026 NASA Space Apps Challenge — [*Flame in Freefall: SI-Powered Fire Safety Insights from Microgravity Combustion Data*](https://www.spaceappschallenge.org/2026/challenges/flame-in-freefall/)
+- **Firebase Project**: `astroflame-ddc5c` (`pranavkantak9@gmail.com` & `neelakantak31@gmail.com` Authorized Admins)
+
+AstroFlame is a full-stack aerospace telemetry and Super Intelligence (SI) synthesis platform that summarizes, ranks, and interprets decades of microgravity (`0.00g`) and partial-gravity (`0.16g` Lunar / `0.38g` Martian) combustion experiments from NASA's [Physical Sciences Informatics (PSI) Data Repository](https://psi.nasa.gov/physci/repo) and the [NASA Glenn Combustion Science Program](https://www.nasa.gov/glenn/glenn-expertise-space-exploration/physical-sciences-program/combustion-science/).
 
 ---
 
@@ -13,6 +17,8 @@ AstroFlame is a full-stack aerospace telemetry and synthesis platform that summa
   - **Dual 3D Flame Comparison Chamber (`CENTER`)**: Side-by-side Three.js chamber comparing `1.00g Buoyant Teardrop` vs. `0.00g / Partial-g` diffusion flames with an explicit **3-Mode Provenance Switcher** (`3D Physics Illustration` | `PSI Experimental Overlay` | `Validated Simulation Mesh`).
   - **Dataset-Grounded Real-Time Telemetry (`RIGHT`)**: Every waveform, transient spike bar chart, circular radial gauge, parametric multi-curve plot, and timestamped live log entry is driven directly by empirical measurements from the active NASA PSI dataset.
   - **History & Simulation Playback Timeline (`BOTTOM`)**: Interactive `0s–300s` experimental run scrubber with Play/Pause, Step Back/Forward, and synchronized chamber/telemetry state.
+- **Gemini 4 Hydrogen (`gemini-4-hydrogen`) SI Mission Copilot**:
+  - Floating slide-over telemetry drawer accessible across all tabs, grounded in 16 NASA PSI investigations with **One-Click Chamber & Telemetry Action** presets.
 - **NASA PSI Datasets Catalog & Regime-Locked Comparison Matrix (`/datasets`)**:
   - Covers 8 Core Fire-Safety Anchors, 16 Extended PSI Investigations, and 2 Lunar Partial-Gravity Benchmarks (`FM2` & `LUCI`).
   - Enforces scientifically valid comparisons by locking side-by-side matrices within compatible experimental families (`SOLID_FLOW`, `DROPLET_COOL`, `GASEOUS_BURNER`, `SMOKE_AEROSOL`).
@@ -25,16 +31,17 @@ AstroFlame is a full-stack aerospace telemetry and synthesis platform that summa
 
 ## Repository Structure
 
-- `app/` — Next.js 15 App Router pages and server-side SI API routes (`app/api/si/chat/route.ts` and `app/api/si-synthesis/route.ts`).
+- `app/` — Next.js 15 App Router pages (`/`, `/datasets`, `/simulator`, `/hardware`, `/resources`, `/cloud`), statically exported (`output: 'export'`) to `out/` for Firebase Hosting (`https://astroflame-ddc5c.web.app/`).
 - `frontend/` — Reusable UI components (`AppShell`, `SiChatbotDrawer`, `ThreeFlameChamber`, `ThreeHardwareRacks`, `AstroFlameLogo`, `FirebaseConfigModal`) and global state context (`astroflame-context.tsx`).
-- `backend/` — NASA PSI dataset catalog & empirical telemetry profiles (`psi-datasets.ts`), Gemini 4 Hydrogen (`gemini-4-hydrogen`) SI Synthesis & Copilot Engine (`si-synthesis-engine.ts`), and Firebase Authentication + Cloud Firestore client (`firebase.ts`).
-- `public/assets/brand/` — Brand emblem and static assets.
+- `backend/` — NASA PSI dataset catalog & empirical telemetry profiles (`psi-datasets.ts`), Gemini 4 Hydrogen (`gemini-4-hydrogen`) SI Synthesis & Copilot Engine (`si-synthesis-engine.ts`), API route handlers (`backend/routes/`), and Firebase Authentication + Cloud Firestore client (`firebase.ts`).
+- `server.mjs` — Standalone Node.js HTTP backend server (`/api/si/chat`, `/api/si-synthesis`, `/health`) for Render / Cloud Run deployment.
+- `.github/workflows/` — Automated GitHub Actions CI/CD workflows deploying the static build (`out/`) directly to Firebase Hosting (`astroflame-ddc5c`).
 
 ---
 
 ## Local Development & Environment Variables (`.env.local`)
 
-`.env` and `.env.local` are excluded via `.gitignore` so secret API keys are never committed to GitHub. To run locally with live **Gemini 4 Hydrogen (`gemini-4-hydrogen`)** responses:
+`.env` and `.env.local` are excluded via `.gitignore` so secret API keys are never committed to GitHub.
 
 ```bash
 cp .env.example .env.local
@@ -43,15 +50,19 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000` in your browser.
+To run the standalone SI backend server (`server.mjs`) on port `4000`:
+
+```bash
+npm run start:backend
+```
 
 ---
 
-## Deployment (Render / Vercel / Cloud Run)
+## Firebase Hosting & Cloud Firestore (`astroflame-ddc5c`)
 
-Because AstroFlame uses **Next.js App Router**, the frontend UI and backend API routes (`/api/si/chat` and `/api/si-synthesis`) run together inside a **single unified Web Service**—no separate backend deployment is required:
-
-1. Create a single **Web Service** on Render (or import into Vercel) connected to this GitHub repository.
-2. Build Command: `npm install && npm run build`
-3. Start Command: `npm run start`
-4. Add `GEMINI_API_KEY` under the service's **Environment Variables** settings.
+- **Live Deployment**: [https://astroflame-ddc5c.web.app/](https://astroflame-ddc5c.web.app/)
+- **Firestore Collections**:
+  1. `psi_annotations`
+  2. `saved_simulations`
+  3. `custom_rankings`
+- Sign in as an authorized Admin (`pranavkantak9@gmail.com` or `neelakantak31@gmail.com`) and open the **Cloud (`/cloud`)** tab to click **`+ Initialize All 3 Collections`** and seed the initial documents automatically.

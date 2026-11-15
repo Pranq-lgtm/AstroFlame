@@ -19,6 +19,10 @@ import {
   type TelemetryActionInput,
 } from '@/frontend/context/astroflame-context';
 import { PERSONA_LENSES } from '@/backend/psi-datasets';
+import {
+  buildDeterministicSynthesis,
+  buildRecommendedTelemetryActions,
+} from '@/backend/si-synthesis-engine';
 
 interface CitedDatasetBadge {
   id: string;
@@ -147,10 +151,8 @@ Ask me about **low-velocity microgravity ventilation (BASS-II)**, **34% O₂ Lun
     setIsLoading(true);
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
-        ? `${process.env.NEXT_PUBLIC_BACKEND_URL.replace(/\/$/, '')}/api/si/chat`
-        : '/api/si/chat';
-      const response = await fetch(backendUrl, {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+      const response = await fetch(`${backendUrl}/api/si/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -172,6 +174,10 @@ Ask me about **low-velocity microgravity ventilation (BASS-II)**, **34% O₂ Lun
         }),
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
       const data = await response.json();
       msgCounterRef.current += 1;
       const replyIndex = msgCounterRef.current;
@@ -188,17 +194,20 @@ Ask me about **low-velocity microgravity ventilation (BASS-II)**, **34% O₂ Lun
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch {
+      const fallback = buildDeterministicSynthesis(promptText, personaRole);
+      const fallbackActions = buildRecommendedTelemetryActions(promptText);
       msgCounterRef.current += 1;
       const errIndex = msgCounterRef.current;
       setMessages((prev) => [
         ...prev,
         {
-          id: `err-${errIndex}`,
+          id: `assistant-${errIndex}`,
           role: 'assistant',
-          content:
-            'Connection to `/api/si/chat` encountered a temporary network issue. Please retry your query.',
+          content: fallback.synthesis,
           timestamp: `TURN #${errIndex}`,
           model: 'gemini-4-hydrogen',
+          citedDatasets: fallback.citedDatasets,
+          telemetryActions: fallbackActions,
         },
       ]);
     } finally {
