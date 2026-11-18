@@ -98,6 +98,7 @@ export default function ExplorationSimulatorPage() {
   const [airflowCmPerSec, setAirflowCmPerSec] = useState<number>(12.0);
   const [eFieldKv, setEFieldKv] = useState<number>(0.0);
   const [scenarioTitle, setScenarioTitle] = useState<string>('');
+  const [hoveredGravityG, setHoveredGravityG] = useState<number | null>(null);
 
   const applyPreset = (preset: AtmospherePreset) => {
     setActivePresetId(preset.id);
@@ -623,7 +624,7 @@ export default function ExplorationSimulatorPage() {
           {/* Dual-Axis Partial-Gravity Flammability Dip & Spread Curve SVG */}
           <div className="rounded-xl bg-white dark:bg-[#0f172a]/85 border border-slate-200 dark:border-sky-400/20 p-5 space-y-3 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-xs font-mono text-slate-700 dark:text-slate-300">
+              <div className="text-xs font-mono font-semibold text-slate-800 dark:text-slate-200">
                 LUCI / FM2 PARTIAL-GRAVITY LIMITING OXYGEN CONCENTRATION (LOC) &amp; SPREAD CURVE
               </div>
               <div className="text-xs font-mono text-amber-700 dark:text-amber-400">
@@ -631,9 +632,45 @@ export default function ExplorationSimulatorPage() {
               </div>
             </div>
 
-            <svg viewBox="0 0 600 200" className="w-full h-48 bg-slate-900 dark:bg-[#050814] rounded-lg border border-slate-300 dark:border-slate-800">
-              {[40, 80, 120, 160].map((y) => (
-                <line key={y} x1="45" y1={y} x2="570" y2={y} stroke="#1e293b" strokeWidth="1" />
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-600 dark:text-slate-400">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="text-sky-700 dark:text-sky-400 font-semibold">― Limiting O₂ Concentration (LOC %)</span>
+                <span className="text-amber-700 dark:text-amber-400 font-semibold">- - Spread Hazard Acceleration</span>
+              </div>
+              <span>
+                {hoveredGravityG !== null
+                  ? `Hover: ${hoveredGravityG.toFixed(2)}g (Click chart to apply gravity)`
+                  : 'Click chart to test partial gravity'}
+              </span>
+            </div>
+
+            <svg
+              viewBox="0 0 600 212"
+              className="w-full h-52 bg-slate-50 dark:bg-[#050814] rounded-lg border border-slate-200 dark:border-slate-800 cursor-crosshair select-none"
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const svgX = ((e.clientX - rect.left) / rect.width) * 600;
+                const gVal = Math.max(0, Math.min(1, Number(((svgX - 60) / 490).toFixed(2))));
+                setHoveredGravityG(gVal);
+              }}
+              onMouseLeave={() => setHoveredGravityG(null)}
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const svgX = ((e.clientX - rect.left) / rect.width) * 600;
+                const gVal = Math.max(0, Math.min(1, Number(((svgX - 60) / 490).toFixed(2))));
+                setGravityG(gVal);
+              }}
+            >
+              {[42, 82, 122, 162].map((y) => (
+                <line
+                  key={y}
+                  x1="45"
+                  y1={y}
+                  x2="570"
+                  y2={y}
+                  className="stroke-slate-200 dark:stroke-slate-800"
+                  strokeWidth="1"
+                />
               ))}
               {[
                 { g: 0.0, x: 60, label: '0.00g ISS' },
@@ -646,42 +683,92 @@ export default function ExplorationSimulatorPage() {
                     x1={m.x}
                     y1="20"
                     x2={m.x}
-                    y2="175"
-                    stroke="#334155"
+                    y2="178"
+                    className="stroke-slate-300 dark:stroke-slate-700"
                     strokeDasharray="3,3"
                   />
-                  <text x={m.x} y="190" textAnchor="middle" className="fill-slate-400 text-[10px] font-mono">
+                  <text
+                    x={m.x}
+                    y="196"
+                    textAnchor="middle"
+                    className="fill-slate-600 dark:fill-slate-400 text-[10px] font-mono"
+                  >
                     {m.label}
                   </text>
                 </g>
               ))}
 
+              {/* Hover Crosshair */}
+              {hoveredGravityG !== null && (
+                <line
+                  x1={60 + hoveredGravityG * 490}
+                  y1="20"
+                  x2={60 + hoveredGravityG * 490}
+                  y2="178"
+                  className="stroke-sky-500/60"
+                  strokeWidth="1"
+                  strokeDasharray="2,2"
+                />
+              )}
+
+              {/* Solid LOC Curve */}
               <path
-                d="M 60 115 Q 145 155, 260 120 T 550 75"
+                d="M 60 118 Q 145 158, 260 122 T 550 78"
                 fill="none"
-                stroke="#38bdf8"
+                className="stroke-sky-600 dark:stroke-sky-400"
                 strokeWidth="2.5"
               />
+              {/* Dashed Flame Spread Acceleration Curve */}
               <path
-                d="M 60 130 Q 150 45, 260 65 T 550 95"
+                d="M 60 132 Q 150 48, 260 68 T 550 98"
                 fill="none"
-                stroke="#f59e0b"
-                strokeWidth="2"
+                className="stroke-amber-600 dark:stroke-amber-400"
+                strokeWidth="2.2"
                 strokeDasharray="5,4"
               />
 
+              {/* Active Marker + Non-Overlapping Smart Callout Card */}
               {(() => {
                 const activeX = 60 + Math.min(1, gravityG) * 490;
                 const activeY =
-                  170 - Math.min(140, (telemetry.flammabilityRiskIndex / 100) * 135);
+                  172 - Math.min(140, (telemetry.flammabilityRiskIndex / 100) * 135);
+                const placeBelow = activeY < 96;
+                const boxWidth = 178;
+                const boxHeight = 22;
+                const boxCenterX = Math.min(570 - boxWidth / 2, Math.max(45 + boxWidth / 2, activeX));
+                const boxTopY = placeBelow ? activeY + 14 : Math.max(8, activeY - boxHeight - 14);
                 return (
                   <g>
-                    <circle cx={activeX} cy={activeY} r="6" fill="#f43f5e" stroke="#ffffff" strokeWidth="2" />
+                    <line
+                      x1={activeX}
+                      y1="20"
+                      x2={activeX}
+                      y2="178"
+                      className="stroke-rose-500/40"
+                      strokeWidth="1"
+                    />
+                    <circle
+                      cx={activeX}
+                      cy={activeY}
+                      r="6"
+                      fill="#f43f5e"
+                      className="stroke-white dark:stroke-slate-950"
+                      strokeWidth="2"
+                    />
+                    <rect
+                      x={boxCenterX - boxWidth / 2}
+                      y={boxTopY}
+                      width={boxWidth}
+                      height={boxHeight}
+                      rx="6"
+                      className="fill-white/95 dark:fill-[#090e21]/95 stroke-rose-400 dark:stroke-rose-500/70"
+                      strokeWidth="1"
+                    />
                     <text
-                      x={Math.min(520, Math.max(80, activeX))}
-                      y={Math.max(28, activeY - 12)}
+                      x={boxCenterX}
+                      y={boxTopY + 14.5}
                       textAnchor="middle"
-                      className="fill-rose-400 text-[10px] font-mono font-bold"
+                      className="fill-rose-700 dark:fill-rose-300 text-[10px] font-mono font-bold"
                     >
                       Active: {gravityG.toFixed(2)}g · Risk {telemetry.flammabilityRiskIndex}/100
                     </text>

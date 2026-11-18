@@ -364,29 +364,10 @@ const AstroFlameContext = createContext<AstroFlameContextValue | undefined>(unde
 
 export function AstroFlameProvider({ children }: { children: React.ReactNode }) {
   const [personaRole, setPersonaRoleState] = useState<PersonaRoleId>('engineer');
-  const [activeDatasetId, setActiveDatasetIdState] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = window.localStorage.getItem(STORAGE_KEYS.ACTIVE_DATASET);
-      if (saved && PSI_DATASETS.some((d) => d.id === saved)) return saved;
-    }
-    return 'bass-ii-psi-25';
-  });
-
-  const [theme, setThemeState] = useState<ThemeMode>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = window.localStorage.getItem(STORAGE_KEYS.THEME);
-      if (saved === 'light' || saved === 'dark') return saved;
-    }
-    return 'dark';
-  });
-
-  const [adminPreviewMode, setAdminPreviewModeState] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = window.localStorage.getItem(STORAGE_KEYS.ADMIN_PREVIEW);
-      if (saved !== null) return saved === 'true';
-    }
-    return true;
-  });
+  const [activeDatasetId, setActiveDatasetIdState] = useState<string>('bass-ii-psi-25');
+  const [theme, setThemeState] = useState<ThemeMode>('dark');
+  const [adminPreviewMode, setAdminPreviewModeState] = useState<boolean>(true);
+  const hasHydratedStorageRef = React.useRef<boolean>(false);
 
   const [siWeights, setSiWeights] = useState<SiWeights>(PERSONA_LENSES[0].defaultWeights);
   const [user, setUser] = useState<ResearcherUser | null>(DEFAULT_ADMIN_SESSION_USER);
@@ -396,17 +377,11 @@ export function AstroFlameProvider({ children }: { children: React.ReactNode }) 
   const [authModalTab, setAuthModalTab] = useState<'user' | 'admin'>('user');
   const [isCopilotOpen, setIsCopilotOpen] = useState<boolean>(false);
   const [inspectedDatasetId, setInspectedDatasetId] = useState<string | null>(null);
-  const [bookmarkedDatasetIds, setBookmarkedDatasetIds] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = window.localStorage.getItem(STORAGE_KEYS.BOOKMARKS);
-        if (saved) return JSON.parse(saved) as string[];
-      } catch {
-        // ignore
-      }
-    }
-    return ['bass-ii-psi-25', 'saffire-i-ii-psi-98-99', 'flex-psi-69'];
-  });
+  const [bookmarkedDatasetIds, setBookmarkedDatasetIds] = useState<string[]>([
+    'bass-ii-psi-25',
+    'saffire-i-ii-psi-98-99',
+    'flex-psi-69',
+  ]);
   const [chamberParams, setChamberParams] = useState<GlobalChamberParams>({
     gravityG: 0.0,
     oxygenPercent: 21,
@@ -417,39 +392,9 @@ export function AstroFlameProvider({ children }: { children: React.ReactNode }) 
     playbackTimeSec: 150,
   });
 
-  const [annotations, setAnnotations] = useState<PsiAnnotationRecord[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = window.localStorage.getItem(STORAGE_KEYS.ANNOTATIONS);
-        if (saved) return JSON.parse(saved) as PsiAnnotationRecord[];
-      } catch {
-        // ignore
-      }
-    }
-    return INITIAL_ANNOTATIONS;
-  });
-  const [simulations, setSimulations] = useState<SavedSimulationRecord[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = window.localStorage.getItem(STORAGE_KEYS.SIMULATIONS);
-        if (saved) return JSON.parse(saved) as SavedSimulationRecord[];
-      } catch {
-        // ignore
-      }
-    }
-    return INITIAL_SIMULATIONS;
-  });
-  const [rankings, setRankings] = useState<CustomRankingRecord[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = window.localStorage.getItem(STORAGE_KEYS.RANKINGS);
-        if (saved) return JSON.parse(saved) as CustomRankingRecord[];
-      } catch {
-        // ignore
-      }
-    }
-    return INITIAL_RANKINGS;
-  });
+  const [annotations, setAnnotations] = useState<PsiAnnotationRecord[]>(INITIAL_ANNOTATIONS);
+  const [simulations, setSimulations] = useState<SavedSimulationRecord[]>(INITIAL_SIMULATIONS);
+  const [rankings, setRankings] = useState<CustomRankingRecord[]>(INITIAL_RANKINGS);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const isVerifiedAdminEmail = Boolean(
@@ -462,13 +407,63 @@ export function AstroFlameProvider({ children }: { children: React.ReactNode }) 
   const activeDataset =
     PSI_DATASETS.find((d) => d.id === activeDatasetId) || PSI_DATASETS[0];
 
+  // Hydrate persisted preferences safely after mount to prevent Next.js SSR hydration mismatches
   useEffect(() => {
-    if (typeof document !== 'undefined') {
-      document.documentElement.classList.toggle('dark', theme === 'dark');
-    }
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(STORAGE_KEYS.THEME, theme);
-    }
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      try {
+        const savedDataset = window.localStorage.getItem(STORAGE_KEYS.ACTIVE_DATASET);
+        if (savedDataset && PSI_DATASETS.some((d) => d.id === savedDataset)) {
+          setActiveDatasetIdState(savedDataset);
+        }
+
+        const savedTheme = window.localStorage.getItem(STORAGE_KEYS.THEME);
+        if (savedTheme === 'light' || savedTheme === 'dark') {
+          setThemeState(savedTheme);
+          document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+        }
+
+        const savedAdminPreview = window.localStorage.getItem(STORAGE_KEYS.ADMIN_PREVIEW);
+        if (savedAdminPreview !== null) {
+          setAdminPreviewModeState(savedAdminPreview === 'true');
+        }
+
+        const savedBookmarks = window.localStorage.getItem(STORAGE_KEYS.BOOKMARKS);
+        if (savedBookmarks) {
+          setBookmarkedDatasetIds(JSON.parse(savedBookmarks) as string[]);
+        }
+
+        const savedAnnotations = window.localStorage.getItem(STORAGE_KEYS.ANNOTATIONS);
+        if (savedAnnotations) {
+          setAnnotations(JSON.parse(savedAnnotations) as PsiAnnotationRecord[]);
+        }
+
+        const savedSimulations = window.localStorage.getItem(STORAGE_KEYS.SIMULATIONS);
+        if (savedSimulations) {
+          setSimulations(JSON.parse(savedSimulations) as SavedSimulationRecord[]);
+        }
+
+        const savedRankings = window.localStorage.getItem(STORAGE_KEYS.RANKINGS);
+        if (savedRankings) {
+          setRankings(JSON.parse(savedRankings) as CustomRankingRecord[]);
+        }
+      } catch {
+        // ignore corrupted storage entries
+      } finally {
+        hasHydratedStorageRef.current = true;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydratedStorageRef.current) return;
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    window.localStorage.setItem(STORAGE_KEYS.THEME, theme);
   }, [theme]);
 
   const triggerToast = useCallback((msg: string) => {

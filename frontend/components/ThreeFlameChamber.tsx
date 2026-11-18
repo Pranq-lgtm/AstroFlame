@@ -6,6 +6,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { RotateCcw, Sparkles, Camera, Cpu } from 'lucide-react';
 import { type PsiDataset } from '@/backend/psi-datasets';
+import { useAstroFlame } from '@/frontend/context/astroflame-context';
 
 export type FlameProvenanceMode =
   | '3d_illustration'
@@ -38,16 +39,24 @@ const _tempColor = new THREE.Color();
 const _targetColorInner = new THREE.Color();
 const _targetColorOuter = new THREE.Color();
 const _defaultOrbitTarget = new THREE.Vector3(0, 1.28, 0);
+const _bgDark = new THREE.Color(0x050814);
+const _bgLight = new THREE.Color(0xe8eff7);
+const _hemiSkyDark = new THREE.Color(0x38bdf8);
+const _hemiGroundDark = new THREE.Color(0x0f172a);
+const _hemiSkyLight = new THREE.Color(0xffffff);
+const _hemiGroundLight = new THREE.Color(0xcbd5e1);
+const _baseDark = new THREE.Color(0x1e293b);
+const _baseLight = new THREE.Color(0x475569);
 
-function createProceduralGridTexture(maxAnisotropy: number): THREE.CanvasTexture {
+function createProceduralGridTexture(maxAnisotropy: number, isLight: boolean): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 512;
   const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#060a17';
+  ctx.fillStyle = isLight ? '#eef3f9' : '#060a17';
   ctx.fillRect(0, 0, 512, 512);
 
-  ctx.strokeStyle = 'rgba(56, 189, 248, 0.18)';
+  ctx.strokeStyle = isLight ? 'rgba(15, 23, 42, 0.11)' : 'rgba(56, 189, 248, 0.18)';
   ctx.lineWidth = 1;
   for (let i = 0; i <= 512; i += 32) {
     ctx.beginPath();
@@ -60,7 +69,7 @@ function createProceduralGridTexture(maxAnisotropy: number): THREE.CanvasTexture
     ctx.stroke();
   }
 
-  ctx.strokeStyle = 'rgba(56, 189, 248, 0.38)';
+  ctx.strokeStyle = isLight ? 'rgba(2, 132, 199, 0.34)' : 'rgba(56, 189, 248, 0.38)';
   ctx.lineWidth = 2;
   ctx.strokeRect(1, 1, 510, 510);
 
@@ -95,8 +104,10 @@ export default function ThreeFlameChamber({
   activeDataset,
   onSaveToSimulator,
 }: ThreeFlameChamberProps) {
+  const { theme } = useAstroFlame();
   const canvasMountRef = useRef<HTMLDivElement | null>(null);
   const paramsRef = useRef<FlameChamberParams>(params);
+  const themeRef = useRef(theme);
   const resetCameraTriggerRef = useRef<boolean>(false);
 
   const provenanceMode: FlameProvenanceMode =
@@ -105,6 +116,10 @@ export default function ThreeFlameChamber({
   useEffect(() => {
     paramsRef.current = params;
   }, [params]);
+
+  useEffect(() => {
+    themeRef.current = theme;
+  }, [theme]);
 
   useEffect(() => {
     const container = canvasMountRef.current;
@@ -139,9 +154,10 @@ export default function ThreeFlameChamber({
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
+    const initialLight = themeRef.current === 'light';
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x050814);
-    scene.fog = new THREE.FogExp2(0x050814, 0.042);
+    scene.background = new THREE.Color(initialLight ? 0xe8eff7 : 0x050814);
+    scene.fog = new THREE.FogExp2(initialLight ? 0xe8eff7 : 0x050814, initialLight ? 0.028 : 0.042);
 
     // 2. Mandatory RoomEnvironment + PMREMGenerator
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
@@ -161,11 +177,15 @@ export default function ThreeFlameChamber({
     controls.update();
 
     // 3. Balanced 3-Point Studio Lighting Rig
-    const hemiLight = new THREE.HemisphereLight(0x38bdf8, 0x0f172a, 0.8);
+    const hemiLight = new THREE.HemisphereLight(
+      initialLight ? 0xffffff : 0x38bdf8,
+      initialLight ? 0xcbd5e1 : 0x0f172a,
+      initialLight ? 1.35 : 0.8
+    );
     hemiLight.position.set(0, 12, 0);
     scene.add(hemiLight);
 
-    const keyLight = new THREE.DirectionalLight(0xfff3db, 2.2);
+    const keyLight = new THREE.DirectionalLight(0xfff5e4, initialLight ? 2.6 : 2.2);
     keyLight.position.set(5.5, 8.5, 6.0);
     keyLight.castShadow = !isSoftwareGl;
     const d = 6;
@@ -181,7 +201,7 @@ export default function ThreeFlameChamber({
     keyLight.shadow.normalBias = 0.02;
     scene.add(keyLight);
 
-    const rimLight = new THREE.DirectionalLight(0x6366f1, 1.3);
+    const rimLight = new THREE.DirectionalLight(initialLight ? 0x0284c7 : 0x6366f1, initialLight ? 1.1 : 1.3);
     rimLight.position.set(-5.0, 4.5, -5.0);
     scene.add(rimLight);
 
@@ -193,16 +213,17 @@ export default function ThreeFlameChamber({
     flamePointLightRight.position.set(1.85, 1.55, 0);
     scene.add(flamePointLightRight);
 
-    // 4. Optical Bench Floor & Contact Shadows
+    // 4. Optical Bench Floor & Contact Shadows (Pre-built Dark & Light Laboratory Grids)
     const maxAniso = renderer.capabilities.getMaxAnisotropy();
-    const gridTex = createProceduralGridTexture(maxAniso);
+    const gridTexDark = createProceduralGridTexture(maxAniso, false);
+    const gridTexLight = createProceduralGridTexture(maxAniso, true);
     const shadowTex = createContactShadowTexture();
 
     const floorGeo = new THREE.PlaneGeometry(18, 12);
     const floorMat = new THREE.MeshStandardMaterial({
-      map: gridTex,
-      roughness: 0.72,
-      metalness: 0.25,
+      map: initialLight ? gridTexLight : gridTexDark,
+      roughness: initialLight ? 0.85 : 0.72,
+      metalness: initialLight ? 0.08 : 0.25,
     });
     const floorMesh = new THREE.Mesh(floorGeo, floorMat);
     floorMesh.rotation.x = -Math.PI / 2;
@@ -562,12 +583,68 @@ export default function ThreeFlameChamber({
       geo.computeVertexNormals();
     }
 
+    let prevAppliedLight: boolean | null = null;
+
     function tick() {
       if (disposed) return;
       const nowMs = performance.now();
       const delta = Math.min(Math.max((nowMs - lastFrameTimeMs) / 1000, 0.001), 0.1);
       lastFrameTimeMs = nowMs;
       const elapsed = (nowMs - startTimeMs) / 1000;
+
+      const isLight = themeRef.current === 'light';
+      if (prevAppliedLight !== isLight) {
+        prevAppliedLight = isLight;
+        floorMat.map = isLight ? gridTexLight : gridTexDark;
+        floorMat.roughness = isLight ? 0.85 : 0.72;
+        floorMat.metalness = isLight ? 0.08 : 0.25;
+        floorMat.needsUpdate = true;
+
+        const targetBlend = isLight ? THREE.NormalBlending : THREE.AdditiveBlending;
+        matFlameInnerLeft.blending = targetBlend;
+        matFlameInnerLeft.opacity = isLight ? 0.96 : 0.9;
+        matFlameInnerLeft.color.setHex(isLight ? 0xd97706 : 0xf59e0b);
+        matFlameInnerLeft.emissive.setHex(isLight ? 0xc2410c : 0xea580c);
+        matFlameInnerLeft.emissiveIntensity = isLight ? 1.45 : 2.3;
+        matFlameInnerLeft.needsUpdate = true;
+
+        matFlameOuterLeft.blending = targetBlend;
+        matFlameOuterLeft.opacity = isLight ? 0.45 : 0.4;
+        matFlameOuterLeft.color.setHex(isLight ? 0x0284c7 : 0x38bdf8);
+        matFlameOuterLeft.emissive.setHex(isLight ? 0xd97706 : 0xf59e0b);
+        matFlameOuterLeft.emissiveIntensity = isLight ? 0.85 : 1.15;
+        matFlameOuterLeft.needsUpdate = true;
+
+        matFlameInnerRight.blending = targetBlend;
+        matFlameInnerRight.opacity = isLight ? 0.96 : 0.92;
+        matFlameInnerRight.needsUpdate = true;
+
+        matFlameOuterRight.blending = targetBlend;
+        matFlameOuterRight.opacity = isLight ? 0.46 : 0.44;
+        matFlameOuterRight.needsUpdate = true;
+
+        particleMat.blending = targetBlend;
+        particleMat.opacity = isLight ? 0.88 : 0.82;
+        particleMat.needsUpdate = true;
+
+        matSapphireShroud.color.setHex(isLight ? 0x7dd3fc : 0xe0f2fe);
+        matSapphireShroud.opacity = isSoftwareGl ? (isLight ? 0.18 : 0.24) : 1.0;
+        matSapphireShroud.needsUpdate = true;
+
+        renderer.toneMappingExposure = isLight ? 1.04 : 1.15;
+      }
+
+      const bgColor = scene.background as THREE.Color;
+      bgColor.lerp(isLight ? _bgLight : _bgDark, 1 - Math.exp(-8 * delta));
+      if (scene.fog instanceof THREE.FogExp2) {
+        scene.fog.color.copy(bgColor);
+        scene.fog.density = THREE.MathUtils.damp(scene.fog.density, isLight ? 0.026 : 0.042, 6, delta);
+      }
+      hemiLight.color.lerp(isLight ? _hemiSkyLight : _hemiSkyDark, 1 - Math.exp(-8 * delta));
+      hemiLight.groundColor.lerp(isLight ? _hemiGroundLight : _hemiGroundDark, 1 - Math.exp(-8 * delta));
+      hemiLight.intensity = THREE.MathUtils.damp(hemiLight.intensity, isLight ? 1.35 : 0.8, 6, delta);
+      keyLight.intensity = THREE.MathUtils.damp(keyLight.intensity, isLight ? 2.6 : 2.2, 6, delta);
+      matAnodizedBase.color.lerp(isLight ? _baseLight : _baseDark, 1 - Math.exp(-8 * delta));
 
       if (resetCameraTriggerRef.current) {
         camera.position.lerp(_tempPos.set(0, 2.45, 8.1), 1 - Math.exp(-8 * delta));
@@ -586,8 +663,8 @@ export default function ThreeFlameChamber({
       const isWireframeSim = activeMode === 'validated_simulation';
       matFlameOuterLeft.wireframe = isWireframeSim;
       matFlameOuterRight.wireframe = isWireframeSim;
-      leftRig.cageMat.opacity = activeMode === 'psi_experimental' ? 0.85 : isWireframeSim ? 0.7 : 0.42;
-      rightRig.cageMat.opacity = activeMode === 'psi_experimental' ? 0.85 : isWireframeSim ? 0.7 : 0.42;
+      leftRig.cageMat.opacity = activeMode === 'psi_experimental' ? 0.85 : isWireframeSim ? 0.72 : isLight ? 0.55 : 0.42;
+      rightRig.cageMat.opacity = activeMode === 'psi_experimental' ? 0.85 : isWireframeSim ? 0.72 : isLight ? 0.55 : 0.42;
 
       dampedGravity = THREE.MathUtils.damp(dampedGravity, target.gravityG, 6.0, delta);
       dampedO2 = THREE.MathUtils.damp(dampedO2, target.oxygenPercent, 6.0, delta);
@@ -627,23 +704,26 @@ export default function ThreeFlameChamber({
       const isCoolStage = target.coolFlameMode || (pbSec >= 155 && pbSec <= 260 && target.gravityG <= 0.16);
 
       if (isCoolStage) {
-        _targetColorInner.setHex(0xa855f7);
-        _targetColorOuter.setHex(0x6366f1);
-        matFlameInnerRight.emissiveIntensity = 1.7 + Math.sin(elapsed * 4.0) * 0.25;
+        _targetColorInner.setHex(isLight ? 0x7c3aed : 0xa855f7);
+        _targetColorOuter.setHex(isLight ? 0x4f46e5 : 0x6366f1);
+        matFlameInnerRight.emissiveIntensity = (isLight ? 1.15 : 1.7) + Math.sin(elapsed * 4.0) * 0.2;
       } else if (activeMode === 'psi_experimental') {
-        // Calibrated Nikon DSLR Pyrometry & Intensified CCD False-Color Palette
-        _targetColorInner.setHex(0x38bdf8);
-        _targetColorOuter.setHex(0xf59e0b);
-        matFlameInnerRight.emissiveIntensity = 2.6;
+        _targetColorInner.setHex(isLight ? 0x0284c7 : 0x38bdf8);
+        _targetColorOuter.setHex(isLight ? 0xd97706 : 0xf59e0b);
+        matFlameInnerRight.emissiveIntensity = isLight ? 1.35 : 2.6;
       } else {
         const sootFactor = THREE.MathUtils.clamp(
           dampedGravity * 0.75 + Math.max(0, (dampedO2 - 28) / 45) - Math.max(0, dampedEField * 0.06),
           0,
           1
         );
-        _targetColorInner.setHex(0x38bdf8).lerp(_tempColor.setHex(0xf59e0b), sootFactor);
-        _targetColorOuter.setHex(0x2563eb).lerp(_tempColor.setHex(0xea580c), sootFactor * 0.8);
-        matFlameInnerRight.emissiveIntensity = 2.3 + (dampedO2 / 85) * 1.2;
+        _targetColorInner
+          .setHex(isLight ? 0x0284c7 : 0x38bdf8)
+          .lerp(_tempColor.setHex(isLight ? 0xd97706 : 0xf59e0b), sootFactor);
+        _targetColorOuter
+          .setHex(isLight ? 0x1d4ed8 : 0x2563eb)
+          .lerp(_tempColor.setHex(isLight ? 0xc2410c : 0xea580c), sootFactor * 0.8);
+        matFlameInnerRight.emissiveIntensity = (isLight ? 1.25 : 2.3) + (dampedO2 / 85) * (isLight ? 0.65 : 1.2);
       }
 
       matFlameInnerRight.color.lerp(_targetColorInner, 1 - Math.exp(-8 * delta));
@@ -686,9 +766,9 @@ export default function ThreeFlameChamber({
         particleInstanced.setMatrixAt(i, _tempMatrix);
 
         if (isLeft) {
-          _tempColor.setHex(0xf59e0b);
+          _tempColor.setHex(isLight ? 0xd97706 : 0xf59e0b);
         } else if (isCoolStage) {
-          _tempColor.setHex(0xa855f7);
+          _tempColor.setHex(isLight ? 0x7c3aed : 0xa855f7);
         } else {
           _tempColor.copy(matFlameInnerRight.color);
         }
@@ -730,7 +810,8 @@ export default function ThreeFlameChamber({
       window.cancelAnimationFrame(frameId);
       window.clearTimeout(frameId);
       controls.dispose();
-      gridTex.dispose();
+      gridTexDark.dispose();
+      gridTexLight.dispose();
       shadowTex.dispose();
       floorGeo.dispose();
       floorMat.dispose();
@@ -752,26 +833,35 @@ export default function ThreeFlameChamber({
       badge: 'MODE 1 · 3D PHYSICS ILLUSTRATION',
       title: 'Interactive Three.js Buoyancy vs. Spherical Diffusion Illustration',
       desc: 'Visualizes how 1.00g natural buoyancy pinches hot products into an upward soot teardrop, while 0.00g freefall eliminates Archimedes lift—creating a spherical diffusion flame governed by Fickian radial transport.',
-      color: 'text-sky-300 border-sky-500/50 bg-sky-950/60',
+      color:
+        'bg-sky-50/95 text-sky-900 border-sky-300 dark:bg-sky-950/85 dark:text-sky-300 dark:border-sky-500/50',
+      descText: 'text-slate-700 dark:text-slate-200',
+      doiText: 'text-slate-600 dark:text-slate-300',
     },
     psi_experimental: {
       badge: `MODE 2 · PSI EXPERIMENTAL VISUALIZATION (${activeDataset.psiId})`,
       title: `Calibrated Optical Diagnostic Overlay — ${activeDataset.shortTitle}`,
       desc: `Maps empirical ${activeDataset.facility} optical diagnostics (DOI: ${activeDataset.doi}, ${activeDataset.sampleCount} runs, Peak ${activeDataset.peakTempK}) with 2D color-ratio pyrometry & intensified-CCD radical reaction zone bounds.`,
-      color: 'text-amber-300 border-amber-500/50 bg-amber-950/60',
+      color:
+        'bg-amber-50/95 text-amber-900 border-amber-300 dark:bg-amber-950/85 dark:text-amber-300 dark:border-amber-500/50',
+      descText: 'text-slate-700 dark:text-slate-200',
+      doiText: 'text-slate-600 dark:text-slate-300',
     },
     validated_simulation: {
       badge: 'MODE 3 · VALIDATED REDUCED-ORDER SIMULATION',
       title: 'Spalding B-Number & Damköhler S-Curve Numerical Mesh',
       desc: `Displays the axisymmetric finite-volume control cage and reaction-sheet mesh validated against ${activeDataset.psiId} (${activeDataset.extinctionLimitLOI}).`,
-      color: 'text-purple-300 border-purple-500/50 bg-purple-950/60',
+      color:
+        'bg-purple-50/95 text-purple-900 border-purple-300 dark:bg-purple-950/85 dark:text-purple-300 dark:border-purple-500/50',
+      descText: 'text-slate-700 dark:text-slate-200',
+      doiText: 'text-slate-600 dark:text-slate-300',
     },
   }[provenanceMode];
 
   return (
-    <div className="rounded-xl overflow-hidden border border-slate-300 dark:border-slate-800 bg-[#050814] flex flex-col h-full shadow-lg">
-      {/* Top Provenance Switcher Bar (Clearly Distinguishing Illustration vs Experimental vs Simulation) */}
-      <div className="bg-[#080d1e] border-b border-slate-800 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2">
+    <div className="rounded-xl overflow-hidden border border-slate-300 dark:border-slate-800 bg-slate-100 dark:bg-[#050814] flex flex-col h-full shadow-lg">
+      {/* Top Provenance Switcher Bar */}
+      <div className="bg-white dark:bg-[#080d1e] border-b border-slate-200 dark:border-slate-800 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {[
             {
@@ -797,10 +887,10 @@ export default function ThreeFlameChamber({
                 key={mode.id}
                 type="button"
                 onClick={() => onChangeParams({ ...params, provenanceMode: mode.id })}
-                className={`px-2.5 py-1 text-[11px] font-mono rounded-lg border transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                className={`px-2.5 py-1 text-[11px] font-mono rounded-lg border transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                   active
-                    ? 'bg-sky-500/20 text-sky-300 border-sky-400 font-semibold shadow-sm'
-                    : 'bg-slate-900/90 text-slate-400 border-slate-800 hover:text-slate-200'
+                    ? 'bg-sky-50 text-sky-700 border-sky-500 dark:bg-sky-500/20 dark:text-sky-300 dark:border-sky-400 font-semibold shadow-sm'
+                    : 'bg-slate-100 text-slate-600 border-slate-300 hover:text-slate-900 dark:bg-slate-900/90 dark:text-slate-400 dark:border-slate-800 dark:hover:text-slate-200'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -816,16 +906,16 @@ export default function ThreeFlameChamber({
             onClick={() => {
               resetCameraTriggerRef.current = true;
             }}
-            className="px-3 py-1 text-xs font-mono text-slate-200 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap"
+            className="px-3 py-1 text-xs font-mono text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-sky-400" />
+            <RotateCcw className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
             Reset Camera
           </button>
           {onSaveToSimulator && (
             <button
               type="button"
               onClick={() => onSaveToSimulator(params)}
-              className="px-3 py-1 text-xs font-mono font-semibold text-slate-950 bg-sky-400 hover:bg-sky-300 rounded-lg transition-colors whitespace-nowrap"
+              className="px-3 py-1 text-xs font-mono font-semibold text-white bg-sky-600 hover:bg-sky-500 dark:text-slate-950 dark:bg-sky-400 dark:hover:bg-sky-300 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
             >
               Save Snapshot
             </button>
@@ -834,51 +924,51 @@ export default function ThreeFlameChamber({
       </div>
 
       {/* Main 3D Optical Chamber Stage with Expanded Vertical Clearance */}
-      <div className="relative flex-1 min-h-[500px] sm:min-h-[550px] bg-[#050814]">
+      <div className="relative flex-1 min-h-[500px] sm:min-h-[550px] bg-[#e8eff7] dark:bg-[#050814]">
         <div ref={canvasMountRef} className="absolute inset-0 w-full h-full cursor-crosshair" />
 
         {/* Unified Two-Column Top HUD Bar (Merged Rig Titles + Optical Envelopes + Live Telemetry) */}
         <div className="pointer-events-none absolute top-3 left-3 right-3 z-10">
-          <div className="bg-[#090e22]/92 border border-slate-700/80 rounded-xl px-4 py-2.5 shadow-lg space-y-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:divide-x sm:divide-slate-800">
+          <div className="bg-white/95 dark:bg-[#090e22]/92 border border-slate-300 dark:border-slate-700/80 rounded-xl px-4 py-2.5 shadow-lg space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:divide-x sm:divide-slate-200 dark:sm:divide-slate-800">
               {/* Left Rig Header Column */}
               <div className="min-w-0 sm:pr-3">
-                <div className="text-xs font-mono font-bold text-amber-400 truncate">
+                <div className="text-xs font-mono font-bold text-amber-700 dark:text-amber-400 truncate">
                   LEFT RIG · 1.00g Buoyant Teardrop
                 </div>
-                <div className="text-[11px] font-mono text-slate-400 truncate mt-0.5">
+                <div className="text-[11px] font-mono text-slate-600 dark:text-slate-400 truncate mt-0.5">
                   Boundary Layer (76 mm) · Earth Reference
                 </div>
               </div>
 
               {/* Right Rig Header Column */}
               <div className="min-w-0 sm:pl-4">
-                <div className="text-xs font-mono font-bold text-cyan-300 truncate">
+                <div className="text-xs font-mono font-bold text-sky-700 dark:text-cyan-300 truncate">
                   RIGHT RIG · {gravityLabel}
                 </div>
-                <div className="text-[11px] font-mono text-slate-400 truncate mt-0.5">
+                <div className="text-[11px] font-mono text-slate-600 dark:text-slate-400 truncate mt-0.5">
                   {activeDataset.psiId} Optical Envelope · {activeDataset.shortTitle}
                 </div>
               </div>
             </div>
 
             {/* Live Compact Telemetry Strip */}
-            <div className="pt-1.5 border-t border-slate-800/90 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-mono tabular-nums text-slate-300">
+            <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800/90 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-mono tabular-nums text-slate-700 dark:text-slate-300">
               <span>
-                O₂: <strong className="text-amber-300">{params.oxygenPercent.toFixed(0)}%</strong>
+                O₂: <strong className="text-amber-700 dark:text-amber-300">{params.oxygenPercent.toFixed(0)}%</strong>
               </span>
-              <span className="text-slate-600" aria-hidden="true">·</span>
+              <span className="text-slate-400 dark:text-slate-600" aria-hidden="true">·</span>
               <span>
-                Duct Flow: <strong className="text-emerald-300">{params.airflowCmPerSec.toFixed(1)} cm/s</strong>
+                Duct Flow: <strong className="text-emerald-700 dark:text-emerald-300">{params.airflowCmPerSec.toFixed(1)} cm/s</strong>
               </span>
-              <span className="text-slate-600" aria-hidden="true">·</span>
+              <span className="text-slate-400 dark:text-slate-600" aria-hidden="true">·</span>
               <span>
-                E-FIELD: <strong className="text-purple-300">{params.eFieldKv >= 0 ? `+${params.eFieldKv.toFixed(1)}` : params.eFieldKv.toFixed(1)} kV</strong>
+                E-FIELD: <strong className="text-purple-700 dark:text-purple-300">{params.eFieldKv >= 0 ? `+${params.eFieldKv.toFixed(1)}` : params.eFieldKv.toFixed(1)} kV</strong>
               </span>
-              <span className="text-slate-600" aria-hidden="true">·</span>
+              <span className="text-slate-400 dark:text-slate-600" aria-hidden="true">·</span>
               <span>
                 E-Regime:{' '}
-                <strong className={params.coolFlameMode ? 'text-purple-300' : 'text-sky-300'}>
+                <strong className={params.coolFlameMode ? 'text-purple-700 dark:text-purple-300' : 'text-sky-700 dark:text-sky-300'}>
                   {params.coolFlameMode
                     ? 'Cool Flame NTC (500–1000 K)'
                     : `Hot Diffusion (${activeDataset.peakTempK})`}
@@ -891,24 +981,24 @@ export default function ThreeFlameChamber({
         {/* Non-Overlapping Outer-Perimeter & Mid-Gap Physics Callouts */}
         <div className="pointer-events-none hidden sm:block">
           {/* Left Perimeter Callout */}
-          <div className="absolute top-[52%] left-3 text-[10px] font-mono text-slate-300 bg-[#050814]/90 px-2.5 py-1 rounded-lg border border-slate-800">
-            <div className="text-amber-300 font-semibold">Buoyant Plume</div>
+          <div className="absolute top-[52%] left-3 text-[10px] font-mono text-slate-700 dark:text-slate-300 bg-white/95 dark:bg-[#050814]/90 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-800 shadow-sm">
+            <div className="text-amber-700 dark:text-amber-300 font-semibold">Buoyant Plume</div>
             <div>V_b ≈ 32 cm/s ↑</div>
           </div>
 
           {/* Center Gap Callout Stack */}
-          <div className="absolute top-[46%] left-1/2 -translate-x-1/2 text-[10px] font-mono text-slate-300 bg-[#050814]/90 px-2.5 py-1 rounded-lg border border-slate-800 text-center whitespace-nowrap">
-            <div className="text-cyan-300 font-semibold">Particle Trajectory</div>
+          <div className="absolute top-[45%] left-1/2 -translate-x-1/2 text-[10px] font-mono text-slate-700 dark:text-slate-300 bg-white/95 dark:bg-[#050814]/90 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-800 text-center whitespace-nowrap shadow-sm">
+            <div className="text-sky-700 dark:text-cyan-300 font-semibold">Particle Trajectory</div>
             <div>Fickian Radial Diffusion</div>
           </div>
-          <div className="absolute top-[64%] left-1/2 -translate-x-1/2 text-[10px] font-mono text-slate-300 bg-[#050814]/90 px-2.5 py-1 rounded-lg border border-slate-800 text-center whitespace-nowrap">
-            <div className="text-amber-400 font-semibold">Soot Oxidation Zone</div>
+          <div className="absolute top-[60%] left-1/2 -translate-x-1/2 text-[10px] font-mono text-slate-700 dark:text-slate-300 bg-white/95 dark:bg-[#050814]/90 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-800 text-center whitespace-nowrap shadow-sm">
+            <div className="text-amber-700 dark:text-amber-400 font-semibold">Soot Oxidation Zone</div>
             <div>1,650–1,890 K Annulus</div>
           </div>
 
           {/* Right Perimeter Callout */}
-          <div className="absolute top-[58%] right-3 text-[10px] font-mono text-slate-300 bg-[#050814]/90 px-2.5 py-1 rounded-lg border border-slate-800 text-right max-w-[190px]">
-            <div className="text-sky-400 font-semibold">Reaction Sheet</div>
+          <div className="absolute top-[54%] right-3 text-[10px] font-mono text-slate-700 dark:text-slate-300 bg-white/95 dark:bg-[#050814]/90 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-800 text-right max-w-[190px] shadow-sm">
+            <div className="text-sky-700 dark:text-sky-400 font-semibold">Reaction Sheet</div>
             <div className="truncate">{activeDataset.extinctionLimitLOI}</div>
           </div>
         </div>
@@ -916,13 +1006,13 @@ export default function ThreeFlameChamber({
         {/* Bottom Provenance Identification Strip */}
         <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-10">
           <div
-            className={`px-3.5 py-2 rounded-lg border text-xs flex flex-wrap items-center justify-between gap-2 ${provenanceMeta.color}`}
+            className={`px-3.5 py-2 rounded-lg border text-xs flex flex-wrap items-center justify-between gap-2 shadow-sm ${provenanceMeta.color}`}
           >
             <div>
               <span className="font-mono font-bold mr-2">[{provenanceMeta.badge}]</span>
-              <span className="text-slate-200">{provenanceMeta.desc}</span>
+              <span className={provenanceMeta.descText}>{provenanceMeta.desc}</span>
             </div>
-            <span className="font-mono text-[11px] text-slate-300 shrink-0">
+            <span className={`font-mono text-[11px] shrink-0 ${provenanceMeta.doiText}`}>
               DOI: {activeDataset.doi}
             </span>
           </div>

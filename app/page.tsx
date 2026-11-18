@@ -52,6 +52,7 @@ export default function MissionControlPage() {
     addSimulation,
     chamberParams,
     setChamberParams,
+    triggerToast,
   } = useAstroFlame();
 
   const currentLens =
@@ -66,6 +67,21 @@ export default function MissionControlPage() {
   // Playback Scrubber State (0s to 300s)
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const playbackSec = chamberParams.playbackTimeSec ?? 150;
+
+  // Interactive Right Empirical Telemetry & Timeline States
+  const [hoveredWaveIdx, setHoveredWaveIdx] = useState<number | null>(null);
+  const [hoveredBarIdx, setHoveredBarIdx] = useState<number | null>(null);
+  const [barChannelMode, setBarChannelMode] = useState<'spike' | 'radius'>('spike');
+  const [selectedGaugeIdx, setSelectedGaugeIdx] = useState<number | null>(null);
+  const [visibleCurves, setVisibleCurves] = useState<{ s1: boolean; s2: boolean; s3: boolean }>({
+    s1: true,
+    s2: true,
+    s3: true,
+  });
+  const [hoveredCurveIdx, setHoveredCurveIdx] = useState<number | null>(null);
+  const [selectedCurveIdx, setSelectedCurveIdx] = useState<number | null>(null);
+  const [logFilter, setLogFilter] = useState<'all' | 'nominal' | 'warning' | 'critical'>('all');
+  const [hoveredTimelineSec, setHoveredTimelineSec] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -86,6 +102,20 @@ export default function MissionControlPage() {
     );
     return datasetProfile.timeSeries[idx] || datasetProfile.timeSeries[0];
   }, [datasetProfile, playbackSec]);
+
+  const filteredLiveLog = useMemo(() => {
+    if (logFilter === 'all') return datasetProfile.liveLog;
+    return datasetProfile.liveLog.filter((entry) => entry.status === logFilter);
+  }, [datasetProfile.liveLog, logFilter]);
+
+  const parseTimestampToSec = (ts: string): number => {
+    const parts = ts.split(':');
+    if (parts.length !== 2) return 150;
+    const mins = parseInt(parts[0], 10) || 0;
+    const secs = Math.round(parseFloat(parts[1]) || 0);
+    const total = Math.max(0, Math.min(300, mins * 60 + secs));
+    return Math.round(total / 10) * 10;
+  };
 
   // SI Ranking Engine Filters
   const [pillarFilter, setPillarFilter] = useState<'All' | SafetyPillar>('All');
@@ -540,7 +570,7 @@ export default function MissionControlPage() {
           </div>
 
           {/* ================================================================= */}
-          {/* RIGHT PANEL (3 Cols): Dataset-Grounded Telemetry & Live Log       */}
+          {/* RIGHT PANEL (3 Cols): Interactive Empirical Telemetry & Live Log   */}
           {/* ================================================================= */}
           <div className="lg:col-span-3 flex flex-col">
             <div className="text-[11px] font-mono tracking-wider uppercase text-slate-500 dark:text-slate-400 mb-1 px-1">
@@ -548,225 +578,492 @@ export default function MissionControlPage() {
             </div>
             <div className="flex-1 rounded-xl bg-white dark:bg-[#090e21] border border-slate-300 dark:border-slate-800 p-3.5 flex flex-col justify-between space-y-3 shadow-md">
               {/* Telemetry Header */}
-              <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex flex-wrap items-center justify-between gap-1 pb-1.5 border-b border-slate-200 dark:border-slate-800">
                 <div>
                   <span className="text-sm font-bold text-slate-900 dark:text-white">
                     Telemetry
                   </span>
-                  <span className="ml-2 text-[10px] font-mono text-amber-600 dark:text-amber-400">
+                  <span className="ml-2 text-[10px] font-mono text-amber-700 dark:text-amber-400">
                     [{activeDataset.psiId}]
                   </span>
                 </div>
-                <span className="text-[10px] font-mono text-sky-600 dark:text-sky-400">
+                <span className="text-[10px] font-mono tabular-nums text-sky-700 dark:text-sky-400 font-semibold">
                   t = {playbackSec}s · {currentTimePoint.primarySignal} {datasetProfile.primaryChannelUnit}
                 </span>
               </div>
 
-              {/* Chart 1: Dual-Channel Empirical Waveform */}
-              <div className="rounded-lg bg-slate-950 p-2 border border-slate-800">
-                <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
-                  <span className="text-amber-400">{datasetProfile.primaryChannelName}</span>
-                  <span>
-                    {waveformSvgPaths.minP}–{waveformSvgPaths.maxP} {datasetProfile.primaryChannelUnit}
+              {/* Chart 1: Interactive Dual-Channel Empirical Waveform (Hover + Click-to-Scrub) */}
+              <div className="rounded-lg bg-slate-50 dark:bg-slate-950 p-2.5 border border-slate-200 dark:border-slate-800 space-y-1">
+                <div className="flex items-center justify-between gap-2 text-[10px] font-mono text-slate-600 dark:text-slate-400">
+                  <span className="text-amber-700 dark:text-amber-400 font-semibold leading-tight">
+                    {datasetProfile.primaryChannelName}
+                  </span>
+                  <span className="tabular-nums shrink-0">
+                    {hoveredWaveIdx !== null
+                      ? `t=${datasetProfile.timeSeries[hoveredWaveIdx]?.timeSec ?? 0}s · ${datasetProfile.timeSeries[hoveredWaveIdx]?.primarySignal ?? 0} ${datasetProfile.primaryChannelUnit}`
+                      : `${waveformSvgPaths.minP}–${waveformSvgPaths.maxP} ${datasetProfile.primaryChannelUnit}`}
                   </span>
                 </div>
-                <svg viewBox="0 0 280 74" className="w-full h-16">
-                  <line x1="24" y1="14" x2="274" y2="14" stroke="#1e293b" strokeWidth="1" />
-                  <line x1="24" y1="38" x2="274" y2="38" stroke="#1e293b" strokeWidth="1" />
-                  <line x1="24" y1="64" x2="274" y2="64" stroke="#1e293b" strokeWidth="1" />
+                <svg
+                  viewBox="0 0 280 74"
+                  className="w-full h-16 cursor-crosshair select-none"
+                  onMouseMove={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const svgX = ((e.clientX - rect.left) / rect.width) * 280;
+                    const ratio = Math.max(0, Math.min(1, (svgX - 28) / 244));
+                    const idx = Math.min(
+                      datasetProfile.timeSeries.length - 1,
+                      Math.round(ratio * (datasetProfile.timeSeries.length - 1))
+                    );
+                    setHoveredWaveIdx(idx);
+                  }}
+                  onMouseLeave={() => setHoveredWaveIdx(null)}
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const svgX = ((e.clientX - rect.left) / rect.width) * 280;
+                    const ratio = Math.max(0, Math.min(1, (svgX - 28) / 244));
+                    const idx = Math.min(
+                      datasetProfile.timeSeries.length - 1,
+                      Math.round(ratio * (datasetProfile.timeSeries.length - 1))
+                    );
+                    const pt = datasetProfile.timeSeries[idx];
+                    if (pt) {
+                      setChamberParams((prev) => ({ ...prev, playbackTimeSec: pt.timeSec }));
+                    }
+                  }}
+                >
+                  <line x1="24" y1="14" x2="274" y2="14" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="1" />
+                  <line x1="24" y1="38" x2="274" y2="38" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="1" />
+                  <line x1="24" y1="64" x2="274" y2="64" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="1" />
                   <polyline
                     fill="none"
-                    stroke="#f59e0b"
-                    strokeWidth="2"
+                    className="stroke-amber-600 dark:stroke-amber-400"
+                    strokeWidth="2.2"
                     points={waveformSvgPaths.primaryPolyline}
                   />
+                  {/* Hovered Point Crosshair & Dot */}
+                  {hoveredWaveIdx !== null && (() => {
+                    const pt = datasetProfile.timeSeries[hoveredWaveIdx];
+                    if (!pt) return null;
+                    const spanP = Math.max(1, waveformSvgPaths.maxP - waveformSvgPaths.minP);
+                    const hx = 28 + (hoveredWaveIdx / Math.max(1, datasetProfile.timeSeries.length - 1)) * 244;
+                    const hy = 66 - ((pt.primarySignal - waveformSvgPaths.minP) / spanP) * 52;
+                    return (
+                      <g>
+                        <line
+                          x1={hx}
+                          y1="6"
+                          x2={hx}
+                          y2="68"
+                          className="stroke-slate-400 dark:stroke-slate-500"
+                          strokeWidth="1"
+                          strokeDasharray="2,2"
+                        />
+                        <circle
+                          cx={hx}
+                          cy={hy}
+                          r="3.5"
+                          className="fill-amber-600 dark:fill-amber-400 stroke-white dark:stroke-slate-950"
+                          strokeWidth="1.5"
+                        />
+                      </g>
+                    );
+                  })()}
                   {/* Active Playback Cursor */}
                   <line
                     x1={28 + (playbackSec / 300) * 244}
                     y1="6"
                     x2={28 + (playbackSec / 300) * 244}
                     y2="68"
-                    stroke="#38bdf8"
+                    className="stroke-sky-600 dark:stroke-sky-400"
                     strokeWidth="1.5"
                     strokeDasharray="2,2"
                   />
                 </svg>
+                <div className="text-[9px] font-mono text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                  <span>Click waveform to scrub clock</span>
+                  <span className="truncate max-w-[130px]">{currentTimePoint.phaseLabel}</span>
+                </div>
               </div>
 
-              {/* Chart 2: Spectral / Soot / Radiometer Spike Chart */}
-              <div className="rounded-lg bg-slate-950 p-2 border border-slate-800">
-                <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
-                  <span className="text-cyan-400">{datasetProfile.spikeChannelName}</span>
-                  <span>
-                    {currentTimePoint.sootOrIonSpike} {datasetProfile.spikeChannelUnit}
+              {/* Chart 2: Interactive Spectral / Soot / Flame Radius Bar Chart (Mode Toggle + Click-to-Scrub) */}
+              <div className="rounded-lg bg-slate-50 dark:bg-slate-950 p-2.5 border border-slate-200 dark:border-slate-800 space-y-1">
+                <div className="flex items-center justify-between gap-1 text-[10px] font-mono text-slate-600 dark:text-slate-400">
+                  <span className="text-sky-700 dark:text-cyan-400 font-semibold leading-tight">
+                    {barChannelMode === 'spike'
+                      ? datasetProfile.spikeChannelName
+                      : 'Optical Flame Radius'}
                   </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setBarChannelMode('spike')}
+                      className={`px-1.5 py-0.5 rounded text-[9px] cursor-pointer transition-colors ${
+                        barChannelMode === 'spike'
+                          ? 'bg-sky-600 text-white dark:bg-sky-500 dark:text-slate-950 font-bold'
+                          : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                      }`}
+                    >
+                      Spike
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBarChannelMode('radius')}
+                      className={`px-1.5 py-0.5 rounded text-[9px] cursor-pointer transition-colors ${
+                        barChannelMode === 'radius'
+                          ? 'bg-sky-600 text-white dark:bg-sky-500 dark:text-slate-950 font-bold'
+                          : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                      }`}
+                    >
+                      Radius
+                    </button>
+                  </div>
                 </div>
-                <svg viewBox="0 0 280 62" className="w-full h-14">
-                  <line x1="24" y1="15" x2="274" y2="15" stroke="#1e293b" strokeWidth="1" />
-                  <line x1="24" y1="36" x2="274" y2="36" stroke="#1e293b" strokeWidth="1" />
-                  <line x1="24" y1="56" x2="274" y2="56" stroke="#1e293b" strokeWidth="1" />
+                <div className="text-[10px] font-mono text-slate-600 dark:text-slate-400 tabular-nums flex items-center justify-between">
+                  <span>
+                    {hoveredBarIdx !== null
+                      ? `Hover t=${datasetProfile.timeSeries[hoveredBarIdx]?.timeSec}s`
+                      : `Active t=${playbackSec}s`}
+                  </span>
+                  <strong className="text-slate-900 dark:text-slate-200">
+                    {(() => {
+                      const pt =
+                        hoveredBarIdx !== null
+                          ? datasetProfile.timeSeries[hoveredBarIdx]
+                          : currentTimePoint;
+                      if (!pt) return '';
+                      return barChannelMode === 'spike'
+                        ? `${pt.sootOrIonSpike} ${datasetProfile.spikeChannelUnit}`
+                        : `${pt.flameRadiusMm.toFixed(2)} mm`;
+                    })()}
+                  </strong>
+                </div>
+                <svg viewBox="0 0 280 62" className="w-full h-14 cursor-pointer select-none">
+                  <line x1="24" y1="15" x2="274" y2="15" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="1" />
+                  <line x1="24" y1="36" x2="274" y2="36" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="1" />
+                  <line x1="24" y1="56" x2="274" y2="56" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="1" />
                   {datasetProfile.timeSeries.map((pt, idx) => {
                     const x = 28 + (idx / 30) * 242;
-                    const barH = Math.max(3, (pt.sootOrIonSpike / 100) * 46);
+                    const normVal =
+                      barChannelMode === 'spike'
+                        ? pt.sootOrIonSpike / 100
+                        : Math.min(1, pt.flameRadiusMm / 8.0);
+                    const barH = Math.max(3, normVal * 46);
                     const isCursor = pt.timeSec === playbackSec;
+                    const isHovered = hoveredBarIdx === idx;
                     return (
                       <rect
                         key={pt.timeSec}
-                        x={x - 2}
+                        x={x - 2.5}
                         y={56 - barH}
-                        width="4"
+                        width="5"
                         height={barH}
-                        fill={isCursor ? '#f59e0b' : '#22d3ee'}
-                        opacity={isCursor ? 1 : 0.78}
+                        rx="1"
+                        className={
+                          isCursor
+                            ? 'fill-amber-600 dark:fill-amber-400'
+                            : isHovered
+                            ? 'fill-sky-700 dark:fill-sky-300'
+                            : 'fill-sky-600/80 dark:fill-cyan-400/80'
+                        }
+                        onMouseEnter={() => setHoveredBarIdx(idx)}
+                        onMouseLeave={() => setHoveredBarIdx(null)}
+                        onClick={() =>
+                          setChamberParams((prev) => ({ ...prev, playbackTimeSec: pt.timeSec }))
+                        }
                       />
                     );
                   })}
                 </svg>
               </div>
 
-              {/* 3 Circular Radial Gauges (Exact Dashboard_UI Match) */}
-              <div className="grid grid-cols-3 gap-2 py-1">
-                {datasetProfile.gauges.map((g) => {
-                  const pct = Math.min(1, Math.max(0.08, g.value / g.max));
-                  const strokeHex =
-                    g.color === 'amber'
-                      ? '#f59e0b'
-                      : g.color === 'emerald'
-                      ? '#10b981'
-                      : g.color === 'purple'
-                      ? '#a855f7'
-                      : '#22d3ee';
-                  const dash = (pct * 138).toFixed(1);
+              {/* 3 Interactive Radial Gauges (Full Unclipped Titles + Clickable Detail Popover) */}
+              <div className="space-y-2 py-0.5">
+                <div className="grid grid-cols-3 gap-2">
+                  {datasetProfile.gauges.map((g, gIdx) => {
+                    const pct = Math.min(1, Math.max(0.08, g.value / g.max));
+                    const strokeHex =
+                      g.color === 'amber'
+                        ? '#d97706'
+                        : g.color === 'emerald'
+                        ? '#059669'
+                        : g.color === 'purple'
+                        ? '#7c3aed'
+                        : '#0284c7';
+                    const dash = (pct * 138).toFixed(1);
+                    const isSelected = selectedGaugeIdx === gIdx;
+                    return (
+                      <button
+                        key={g.label}
+                        type="button"
+                        onClick={() =>
+                          setSelectedGaugeIdx((prev) => (prev === gIdx ? null : gIdx))
+                        }
+                        className={`rounded-lg bg-slate-50 dark:bg-slate-950/90 border p-2 flex flex-col items-center text-center transition-all cursor-pointer ${
+                          isSelected
+                            ? 'border-sky-500 ring-1 ring-sky-500/40 shadow-sm'
+                            : 'border-slate-200 dark:border-slate-800 hover:border-sky-400/60'
+                        }`}
+                      >
+                        <svg viewBox="0 0 64 64" className="w-12 h-12">
+                          <circle
+                            cx="32"
+                            cy="32"
+                            r="22"
+                            fill="none"
+                            className="stroke-slate-200 dark:stroke-slate-800"
+                            strokeWidth="6"
+                          />
+                          <circle
+                            cx="32"
+                            cy="32"
+                            r="22"
+                            fill="none"
+                            stroke={strokeHex}
+                            strokeWidth="6"
+                            strokeLinecap="round"
+                            strokeDasharray={`${dash} 160`}
+                            transform="rotate(-90 32 32)"
+                          />
+                          <text
+                            x="32"
+                            y="35"
+                            textAnchor="middle"
+                            className="fill-slate-900 dark:fill-white text-[11px] font-mono font-bold tabular-nums"
+                          >
+                            {g.value}
+                          </text>
+                        </svg>
+                        <div className="text-[10px] leading-tight font-mono font-semibold text-slate-800 dark:text-slate-200 w-full mt-0.5">
+                          {g.label}
+                        </div>
+                        <div className="text-[9px] font-mono text-slate-500 dark:text-slate-400 w-full">
+                          {g.unit}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Expanded Radial Gauge Detail Popover Card */}
+                {selectedGaugeIdx !== null && datasetProfile.gauges[selectedGaugeIdx] && (() => {
+                  const g = datasetProfile.gauges[selectedGaugeIdx];
                   return (
-                    <div
-                      key={g.label}
-                      className="rounded-lg bg-slate-50 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 p-2 flex flex-col items-center text-center"
-                    >
-                      <svg viewBox="0 0 64 64" className="w-14 h-14">
-                        <circle
-                          cx="32"
-                          cy="32"
-                          r="22"
-                          fill="none"
-                          stroke="#1e293b"
-                          strokeWidth="6"
-                        />
-                        <circle
-                          cx="32"
-                          cy="32"
-                          r="22"
-                          fill="none"
-                          stroke={strokeHex}
-                          strokeWidth="6"
-                          strokeLinecap="round"
-                          strokeDasharray={`${dash} 160`}
-                          transform="rotate(-90 32 32)"
-                        />
-                        <text
-                          x="32"
-                          y="34"
-                          textAnchor="middle"
-                          className="fill-slate-900 dark:fill-white text-[11px] font-mono font-bold"
-                        >
-                          {g.value}
-                        </text>
-                      </svg>
-                      <div className="text-[10px] font-mono font-semibold text-slate-800 dark:text-slate-200 truncate w-full">
-                        {g.label}
+                    <div className="rounded-lg bg-sky-50/90 dark:bg-[#050814] border border-sky-300 dark:border-sky-500/40 p-2.5 text-[11px] space-y-1.5">
+                      <div className="flex items-center justify-between gap-2 font-mono">
+                        <span className="font-bold text-sky-800 dark:text-sky-300">{g.label}</span>
+                        <span className="text-slate-700 dark:text-slate-300 tabular-nums font-semibold">
+                          {g.value} / {g.max} {g.unit}
+                        </span>
                       </div>
-                      <div className="text-[9px] font-mono text-slate-500 dark:text-slate-400 truncate w-full">
-                        {g.unit}
+                      <div className="text-slate-600 dark:text-slate-400 leading-snug">
+                        {g.subtext}
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (g.label.includes('O₂') || g.unit.includes('O₂')) {
+                            const targetO2 = Math.max(15, Math.min(85, Math.round(g.value)));
+                            setChamberParams((prev) => ({ ...prev, oxygenPercent: targetO2 }));
+                            triggerToast(`Applied ${targetO2}% O₂ envelope to 3D Chamber`);
+                          } else if (g.label.includes('Cool-Flame')) {
+                            setChamberParams((prev) => ({
+                              ...prev,
+                              coolFlameMode: true,
+                              gravityG: 0.0,
+                            }));
+                            triggerToast('Activated 500–1000 K Cool-Flame Mode in 3D Chamber');
+                          } else {
+                            setChamberParams((prev) => ({
+                              ...prev,
+                              eFieldKv: 6.5,
+                              provenanceMode: 'psi_experimental',
+                            }));
+                            triggerToast(`Applied ${g.label} diagnostic overlay to 3D Chamber`);
+                          }
+                        }}
+                        className="w-full py-1 px-2 rounded bg-sky-600 hover:bg-sky-500 text-white dark:bg-sky-400 dark:text-slate-950 font-mono font-semibold text-[10px] transition-colors cursor-pointer"
+                      >
+                        Apply Envelope to 3D Chamber
+                      </button>
                     </div>
                   );
-                })}
+                })()}
               </div>
 
-              {/* Chart 3: Multi-Curve Parametric Comparison */}
-              <div className="rounded-lg bg-slate-950 p-2 border border-slate-800">
-                <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
-                  <span>{datasetProfile.curves.xAxisLabel}</span>
-                  <span className="text-emerald-400">3 Curves</span>
+              {/* Chart 3: Interactive Parametric Curve Explorer (Toggle Curves + Click Sweep Point) */}
+              <div className="rounded-lg bg-slate-50 dark:bg-slate-950 p-2.5 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between gap-2 text-[10px] font-mono text-slate-600 dark:text-slate-400">
+                  <span className="leading-tight font-semibold text-slate-800 dark:text-slate-200">
+                    {datasetProfile.curves.xAxisLabel}
+                  </span>
+                  <span className="text-emerald-700 dark:text-emerald-400 shrink-0 tabular-nums">
+                    {(() => {
+                      const idx = hoveredCurveIdx ?? selectedCurveIdx;
+                      if (idx === null) return '3 Curves';
+                      return `${datasetProfile.curves.xTicks[idx]} · ${datasetProfile.curves.series1Values[idx]}/${datasetProfile.curves.series2Values[idx]}`;
+                    })()}
+                  </span>
                 </div>
-                <svg viewBox="0 0 280 78" className="w-full h-18">
-                  <line x1="20" y1="16" x2="270" y2="16" stroke="#1e293b" strokeWidth="1" />
-                  <line x1="20" y1="42" x2="270" y2="42" stroke="#1e293b" strokeWidth="1" />
-                  <line x1="20" y1="68" x2="270" y2="68" stroke="#1e293b" strokeWidth="1" />
-                  {[
-                    { vals: datasetProfile.curves.series1Values, color: '#f59e0b' },
-                    { vals: datasetProfile.curves.series2Values, color: '#22d3ee' },
-                    { vals: datasetProfile.curves.series3Values, color: '#10b981' },
-                  ].map((s, sIdx) => {
-                    const pts = s.vals
-                      .map((v, i) => {
-                        const x = 24 + (i / (s.vals.length - 1)) * 242;
-                        const y = 68 - Math.min(1, v / 300) * 52;
-                        return `${x.toFixed(1)},${y.toFixed(1)}`;
-                      })
-                      .join(' ');
+                <svg viewBox="0 0 280 78" className="w-full h-20 cursor-pointer select-none">
+                  <line x1="20" y1="16" x2="270" y2="16" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="1" />
+                  <line x1="20" y1="42" x2="270" y2="42" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="1" />
+                  <line x1="20" y1="68" x2="270" y2="68" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="1" />
+
+                  {(hoveredCurveIdx !== null || selectedCurveIdx !== null) && (() => {
+                    const activeIdx = hoveredCurveIdx ?? selectedCurveIdx ?? 0;
+                    const ax = 24 + (activeIdx / Math.max(1, datasetProfile.curves.xTicks.length - 1)) * 242;
                     return (
-                      <polyline
-                        key={sIdx}
-                        fill="none"
-                        stroke={s.color}
-                        strokeWidth="2"
-                        points={pts}
+                      <line
+                        x1={ax}
+                        y1="8"
+                        x2={ax}
+                        y2="72"
+                        className="stroke-slate-400 dark:stroke-slate-600"
+                        strokeWidth="1"
+                        strokeDasharray="2,2"
                       />
+                    );
+                  })()}
+
+                  {[
+                    { key: 's1' as const, vals: datasetProfile.curves.series1Values, color: '#d97706' },
+                    { key: 's2' as const, vals: datasetProfile.curves.series2Values, color: '#0284c7' },
+                    { key: 's3' as const, vals: datasetProfile.curves.series3Values, color: '#059669' },
+                  ].map((s) => {
+                    if (!visibleCurves[s.key]) return null;
+                    const coords = s.vals.map((v, i) => ({
+                      x: 24 + (i / (s.vals.length - 1)) * 242,
+                      y: 68 - Math.min(1, v / 300) * 52,
+                      val: v,
+                      i,
+                    }));
+                    return (
+                      <g key={s.key}>
+                        <polyline
+                          fill="none"
+                          stroke={s.color}
+                          strokeWidth="2"
+                          points={coords.map((c) => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ')}
+                        />
+                        {coords.map((c) => (
+                          <circle
+                            key={c.i}
+                            cx={c.x}
+                            cy={c.y}
+                            r={selectedCurveIdx === c.i || hoveredCurveIdx === c.i ? 4 : 2.5}
+                            fill={s.color}
+                            className="stroke-white dark:stroke-slate-950"
+                            strokeWidth="1"
+                            onMouseEnter={() => setHoveredCurveIdx(c.i)}
+                            onMouseLeave={() => setHoveredCurveIdx(null)}
+                            onClick={() => {
+                              setSelectedCurveIdx(c.i);
+                              const frac = c.i / Math.max(1, coords.length - 1);
+                              const nextFlow = Number((frac * 18).toFixed(1));
+                              const nextEf = Number((-5 + frac * 15).toFixed(1));
+                              setChamberParams((prev) => ({
+                                ...prev,
+                                airflowCmPerSec: nextFlow,
+                                eFieldKv: nextEf,
+                              }));
+                              triggerToast(
+                                `Applied sweep point ${datasetProfile.curves.xTicks[c.i]} (${nextFlow} cm/s, ${nextEf >= 0 ? `+${nextEf}` : nextEf} kV)`
+                              );
+                            }}
+                          />
+                        ))}
+                      </g>
                     );
                   })}
                 </svg>
-                <div className="flex flex-wrap items-center justify-between gap-1 text-[9px] font-mono mt-1">
-                  <span className="text-amber-400 truncate max-w-[85px]">
-                    ● {datasetProfile.curves.series1Label}
-                  </span>
-                  <span className="text-cyan-400 truncate max-w-[85px]">
-                    ● {datasetProfile.curves.series2Label}
-                  </span>
-                  <span className="text-emerald-400 truncate max-w-[85px]">
-                    ● {datasetProfile.curves.series3Label}
-                  </span>
+
+                {/* Unclipped Interactive Curve Legend Toggles */}
+                <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-mono pt-0.5">
+                  {[
+                    { key: 's1' as const, label: datasetProfile.curves.series1Label, dotClass: 'text-amber-600 dark:text-amber-400' },
+                    { key: 's2' as const, label: datasetProfile.curves.series2Label, dotClass: 'text-sky-600 dark:text-cyan-400' },
+                    { key: 's3' as const, label: datasetProfile.curves.series3Label, dotClass: 'text-emerald-600 dark:text-emerald-400' },
+                  ].map((item) => {
+                    const active = visibleCurves[item.key];
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() =>
+                          setVisibleCurves((prev) => ({ ...prev, [item.key]: !prev[item.key] }))
+                        }
+                        className={`px-1.5 py-0.5 rounded border text-left transition-opacity cursor-pointer ${
+                          active
+                            ? 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 opacity-100'
+                            : 'bg-slate-100 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 opacity-45 line-through'
+                        }`}
+                      >
+                        <span className={item.dotClass}>● {item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Live Measurement Log (Grounded in Active PSI Dataset + Chamber Sliders) */}
+              {/* Filterable Live Measurement Log with Click-to-Jump Phase Time */}
               <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
-                <div className="flex items-center justify-between text-xs font-bold text-slate-900 dark:text-white">
+                <div className="flex items-center justify-between gap-2 text-xs font-bold text-slate-900 dark:text-white">
                   <span>Live Log ({activeDataset.psiId})</span>
-                  <span className="text-[10px] font-mono text-sky-600 dark:text-sky-400">
+                  <span className="text-[10px] font-mono text-sky-700 dark:text-sky-400 truncate">
                     DOI: {activeDataset.doi}
                   </span>
                 </div>
-                <div className="space-y-1 text-[11px] font-mono max-h-[124px] overflow-y-auto pr-1">
-                  <div className="flex items-center justify-between text-amber-700 dark:text-amber-300">
-                    <span>t={playbackSec}s · O₂ Concentration</span>
-                    <span className="font-bold">{chamberParams.oxygenPercent}.0 %</span>
-                  </div>
-                  <div className="flex items-center justify-between text-emerald-700 dark:text-emerald-300">
-                    <span>t={playbackSec}s · Duct Flow BASS-II</span>
-                    <span className="font-bold">{chamberParams.airflowCmPerSec.toFixed(1)} cm/s</span>
-                  </div>
-                  <div className="flex items-center justify-between text-purple-700 dark:text-purple-300">
-                    <span>t={playbackSec}s · E-FIELD Mesh</span>
-                    <span className="font-bold">
-                      {chamberParams.eFieldKv >= 0
-                        ? `+${chamberParams.eFieldKv.toFixed(1)}`
-                        : chamberParams.eFieldKv.toFixed(1)}{' '}
-                      kV
-                    </span>
-                  </div>
-                  {datasetProfile.liveLog.map((entry, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between text-slate-700 dark:text-slate-300 gap-2"
+
+                {/* Severity Filter Tabs */}
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#050814] p-0.5 rounded-md border border-slate-200 dark:border-slate-800 text-[9px] font-mono">
+                  {(['all', 'nominal', 'warning', 'critical'] as const).map((statusKey) => (
+                    <button
+                      key={statusKey}
+                      type="button"
+                      onClick={() => setLogFilter(statusKey)}
+                      className={`flex-1 py-0.5 px-1 rounded capitalize transition-colors cursor-pointer ${
+                        logFilter === statusKey
+                          ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      }`}
                     >
-                      <span className="truncate">
-                        {entry.timestamp} · {entry.channel}
-                      </span>
-                      <span className="text-sky-700 dark:text-sky-300 shrink-0">
-                        {entry.measurement}
-                      </span>
-                    </div>
+                      {statusKey}
+                    </button>
                   ))}
+                </div>
+
+                <div className="space-y-1 text-[11px] font-mono max-h-[126px] overflow-y-auto pr-1">
+                  {filteredLiveLog.map((entry, idx) => {
+                    const jumpSec = parseTimestampToSec(entry.timestamp);
+                    const statusColor =
+                      entry.status === 'critical'
+                        ? 'text-rose-700 dark:text-rose-400'
+                        : entry.status === 'warning'
+                        ? 'text-amber-700 dark:text-amber-300'
+                        : 'text-emerald-700 dark:text-emerald-300';
+                    const glyph =
+                      entry.status === 'critical' ? '✖' : entry.status === 'warning' ? '▲' : '●';
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setChamberParams((prev) => ({ ...prev, playbackTimeSec: jumpSec }));
+                          triggerToast(`Jumped playback clock to ${entry.timestamp} (${jumpSec}s)`);
+                        }}
+                        className="w-full text-left flex items-center justify-between text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900/70 rounded px-1 py-0.5 gap-2 transition-colors cursor-pointer"
+                      >
+                        <span className="truncate">
+                          <span className={`${statusColor} mr-1`}>{glyph}</span>
+                          {entry.timestamp} · {entry.channel}
+                        </span>
+                        <span className="text-sky-700 dark:text-sky-300 shrink-0 font-semibold">
+                          {entry.measurement}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -899,20 +1196,45 @@ export default function MissionControlPage() {
                 </button>
               </div>
 
-              {/* Area Timeline Chart (0s to 300s) */}
+              {/* Interactive Area Timeline Chart (0s to 300s) */}
               <div className="lg:col-span-9">
-                <svg viewBox="0 0 900 58" className="w-full h-14 bg-slate-950 rounded-lg border border-slate-800">
+                <svg
+                  viewBox="0 0 900 58"
+                  className="w-full h-14 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 cursor-crosshair select-none"
+                  onMouseMove={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const svgX = ((e.clientX - rect.left) / rect.width) * 900;
+                    const rawSec = ((svgX - 25) / 850) * 300;
+                    const snapped = Math.max(0, Math.min(300, Math.round(rawSec / 10) * 10));
+                    setHoveredTimelineSec(snapped);
+                  }}
+                  onMouseLeave={() => setHoveredTimelineSec(null)}
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const svgX = ((e.clientX - rect.left) / rect.width) * 900;
+                    const rawSec = ((svgX - 25) / 850) * 300;
+                    const snapped = Math.max(0, Math.min(300, Math.round(rawSec / 10) * 10));
+                    setChamberParams((prev) => ({ ...prev, playbackTimeSec: snapped }));
+                  }}
+                >
                   {/* Vertical Grid Markers */}
                   {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300].map((sec) => {
                     const x = 25 + (sec / 300) * 850;
                     return (
                       <g key={sec}>
-                        <line x1={x} y1="4" x2={x} y2="42" stroke="#1e293b" strokeWidth="1" />
+                        <line
+                          x1={x}
+                          y1="4"
+                          x2={x}
+                          y2="42"
+                          className="stroke-slate-200 dark:stroke-slate-800"
+                          strokeWidth="1"
+                        />
                         <text
                           x={x}
                           y="54"
                           textAnchor="middle"
-                          className="fill-slate-400 text-[9px] font-mono"
+                          className="fill-slate-600 dark:fill-slate-400 text-[9px] font-mono"
                         >
                           {sec}s
                         </text>
@@ -947,22 +1269,33 @@ export default function MissionControlPage() {
                       <>
                         <polygon
                           points={buildArea(firstHalf)}
-                          fill="rgba(34, 211, 238, 0.28)"
-                          stroke="#22d3ee"
+                          fill="rgba(2, 132, 199, 0.22)"
+                          stroke="#0284c7"
                           strokeWidth="1.5"
                         />
                         <polygon
                           points={buildArea(secondHalf)}
-                          fill="rgba(245, 158, 11, 0.28)"
-                          stroke="#f59e0b"
+                          fill="rgba(217, 119, 6, 0.22)"
+                          stroke="#d97706"
                           strokeWidth="1.5"
                         />
+                        {hoveredTimelineSec !== null && (
+                          <line
+                            x1={25 + (hoveredTimelineSec / 300) * 850}
+                            y1="2"
+                            x2={25 + (hoveredTimelineSec / 300) * 850}
+                            y2="44"
+                            className="stroke-slate-500/70"
+                            strokeWidth="1"
+                            strokeDasharray="2,2"
+                          />
+                        )}
                         <line
                           x1={cursorX}
                           y1="2"
                           x2={cursorX}
                           y2="44"
-                          stroke="#ffffff"
+                          className="stroke-slate-900 dark:stroke-white"
                           strokeWidth="2"
                         />
                       </>

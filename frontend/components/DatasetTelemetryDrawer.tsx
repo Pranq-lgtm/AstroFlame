@@ -197,21 +197,21 @@ export default function DatasetTelemetryDrawer() {
           </div>
 
           {/* Empirical Telemetry Waveform Preview */}
-          <div className="rounded-xl bg-slate-950 border border-slate-800 p-4 space-y-2">
-            <div className="flex items-center justify-between text-xs font-mono">
-              <span className="text-amber-400 flex items-center gap-1.5">
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+              <span className="text-amber-700 dark:text-amber-400 flex items-center gap-1.5 font-semibold">
                 <Activity className="w-3.5 h-3.5" />
                 {profile.primaryChannelName} ({profile.primaryChannelUnit})
               </span>
-              <span className="text-sky-400">{familyMeta.label}</span>
+              <span className="text-sky-700 dark:text-sky-400">{familyMeta.label}</span>
             </div>
             <svg viewBox="0 0 360 80" className="w-full h-20">
-              <line x1="16" y1="18" x2="344" y2="18" stroke="#1e293b" strokeWidth="1" />
-              <line x1="16" y1="44" x2="344" y2="44" stroke="#1e293b" strokeWidth="1" />
-              <line x1="16" y1="68" x2="344" y2="68" stroke="#1e293b" strokeWidth="1" />
+              <line x1="16" y1="18" x2="344" y2="18" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="1" />
+              <line x1="16" y1="44" x2="344" y2="44" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="1" />
+              <line x1="16" y1="68" x2="344" y2="68" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="1" />
               <polyline
                 fill="none"
-                stroke="#f59e0b"
+                stroke="#d97706"
                 strokeWidth="2.2"
                 points={profile.curves.series1Values
                   .map((v, i) => `${24 + i * 62},${68 - Math.min(1, v / 300) * 50}`)
@@ -219,16 +219,16 @@ export default function DatasetTelemetryDrawer() {
               />
               <polyline
                 fill="none"
-                stroke="#38bdf8"
+                stroke="#0284c7"
                 strokeWidth="2.2"
                 points={profile.curves.series2Values
                   .map((v, i) => `${24 + i * 62},${68 - Math.min(1, v / 300) * 50}`)
                   .join(' ')}
               />
             </svg>
-            <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
-              <span className="text-amber-400">● {profile.curves.series1Label}</span>
-              <span className="text-sky-400">● {profile.curves.series2Label}</span>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-600 dark:text-slate-400">
+              <span className="text-amber-700 dark:text-amber-400">● {profile.curves.series1Label}</span>
+              <span className="text-sky-700 dark:text-sky-400">● {profile.curves.series2Label}</span>
               <span>
                 {profile.characteristicLengthLabel}: {profile.characteristicLengthValue}
               </span>

@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { ChevronDown, ChevronUp, RotateCcw, Layers, Cpu } from 'lucide-react';
+import { useAstroFlame } from '@/frontend/context/astroflame-context';
 
 export type HardwareRackType = 'CIR' | 'MSG';
 
@@ -89,6 +90,48 @@ const _quat = new THREE.Quaternion();
 const _scale = new THREE.Vector3();
 const _xAxis = new THREE.Vector3(1, 0, 0);
 const _defaultRackTarget = new THREE.Vector3(0, 1.3, 0);
+const _rackBgDark = new THREE.Color(0x050814);
+const _rackBgLight = new THREE.Color(0xe8eff7);
+const _rackHemiSkyDark = new THREE.Color(0x38bdf8);
+const _rackHemiGroundDark = new THREE.Color(0x0f172a);
+const _rackHemiSkyLight = new THREE.Color(0xffffff);
+const _rackHemiGroundLight = new THREE.Color(0xcbd5e1);
+const _rackFrameDark = new THREE.Color(0x1e293b);
+const _rackFrameLight = new THREE.Color(0x475569);
+
+function createRackFloorGridTexture(maxAnisotropy: number, isLight: boolean): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = isLight ? '#eef3f9' : '#070b19';
+  ctx.fillRect(0, 0, 512, 512);
+
+  ctx.strokeStyle = isLight ? 'rgba(15, 23, 42, 0.10)' : 'rgba(56, 189, 248, 0.14)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 512; i += 32) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i, 512);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, i);
+    ctx.lineTo(512, i);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = isLight ? 'rgba(2, 132, 199, 0.28)' : 'rgba(56, 189, 248, 0.28)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, 510, 510);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(6, 6);
+  tex.anisotropy = maxAnisotropy;
+  return tex;
+}
 
 interface ThreeHardwareRacksProps {
   activeRack: HardwareRackType;
@@ -103,12 +146,14 @@ export default function ThreeHardwareRacks({
   selectedSubsystemId,
   onSelectSubsystem,
 }: ThreeHardwareRacksProps) {
+  const { theme } = useAstroFlame();
   const canvasMountRef = useRef<HTMLDivElement | null>(null);
   const [explodedFactor, setExplodedFactor] = useState<number>(0.25);
   const [dockCollapsed, setDockCollapsed] = useState<boolean>(false);
 
   const activeRackRef = useRef<HardwareRackType>(activeRack);
   const explodedRef = useRef<number>(explodedFactor);
+  const themeRef = useRef(theme);
   const resetCamRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -118,6 +163,10 @@ export default function ThreeHardwareRacks({
   useEffect(() => {
     explodedRef.current = explodedFactor;
   }, [explodedFactor]);
+
+  useEffect(() => {
+    themeRef.current = theme;
+  }, [theme]);
 
   useEffect(() => {
     const container = canvasMountRef.current;
@@ -151,9 +200,10 @@ export default function ThreeHardwareRacks({
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
+    const initialLight = themeRef.current === 'light';
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x050814);
-    scene.fog = new THREE.FogExp2(0x050814, 0.045);
+    scene.background = new THREE.Color(initialLight ? 0xe8eff7 : 0x050814);
+    scene.fog = new THREE.FogExp2(initialLight ? 0xe8eff7 : 0x050814, initialLight ? 0.03 : 0.045);
 
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -171,10 +221,14 @@ export default function ThreeHardwareRacks({
     controls.maxDistance = 12.0;
     controls.update();
 
-    const hemiLight = new THREE.HemisphereLight(0x38bdf8, 0x0f172a, 0.85);
+    const hemiLight = new THREE.HemisphereLight(
+      initialLight ? 0xffffff : 0x38bdf8,
+      initialLight ? 0xcbd5e1 : 0x0f172a,
+      initialLight ? 1.35 : 0.85
+    );
     scene.add(hemiLight);
 
-    const keyLight = new THREE.DirectionalLight(0xfff5e4, 2.3);
+    const keyLight = new THREE.DirectionalLight(0xfff5e4, initialLight ? 2.6 : 2.3);
     keyLight.position.set(5, 8, 6);
     keyLight.castShadow = !isSoftwareGl;
     keyLight.shadow.camera.left = -5;
@@ -185,13 +239,13 @@ export default function ThreeHardwareRacks({
     keyLight.shadow.normalBias = 0.02;
     scene.add(keyLight);
 
-    const rimLight = new THREE.DirectionalLight(0x6366f1, 1.4);
+    const rimLight = new THREE.DirectionalLight(initialLight ? 0x0284c7 : 0x6366f1, initialLight ? 1.1 : 1.4);
     rimLight.position.set(-5, 4, -5);
     scene.add(rimLight);
 
     // Materials
     const matRackFrame = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
+      color: initialLight ? 0x475569 : 0x1e293b,
       roughness: 0.52,
       metalness: 0.75,
     });
@@ -224,12 +278,15 @@ export default function ThreeHardwareRacks({
       depthWrite: false,
     });
 
-    // Floor & Contact Shadow
+    // Floor Grid (Pre-built Dark & Light Studio Textures)
+    const maxAniso = renderer.capabilities.getMaxAnisotropy();
+    const rackGridDark = createRackFloorGridTexture(maxAniso, false);
+    const rackGridLight = createRackFloorGridTexture(maxAniso, true);
     const floorGeo = new THREE.PlaneGeometry(16, 16);
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x070b19,
-      roughness: 0.8,
-      metalness: 0.2,
+      map: initialLight ? rackGridLight : rackGridDark,
+      roughness: initialLight ? 0.85 : 0.78,
+      metalness: initialLight ? 0.08 : 0.2,
     });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
@@ -373,12 +430,40 @@ export default function ThreeHardwareRacks({
       frameId = window.setTimeout(poll, 5);
     }
 
+    let prevAppliedLight: boolean | null = null;
+
     function tick() {
       if (disposed) return;
       const nowMs = performance.now();
       const delta = Math.min(Math.max((nowMs - lastFrameTimeMs) / 1000, 0.001), 0.1);
       lastFrameTimeMs = nowMs;
       const elapsed = (nowMs - startTimeMs) / 1000;
+
+      const isLight = themeRef.current === 'light';
+      if (prevAppliedLight !== isLight) {
+        prevAppliedLight = isLight;
+        floorMat.map = isLight ? rackGridLight : rackGridDark;
+        floorMat.roughness = isLight ? 0.85 : 0.78;
+        floorMat.metalness = isLight ? 0.08 : 0.2;
+        floorMat.needsUpdate = true;
+
+        (flameCore.material as THREE.MeshBasicMaterial).color.setHex(
+          isLight ? 0x0284c7 : 0x38bdf8
+        );
+        renderer.toneMappingExposure = isLight ? 1.04 : 1.15;
+      }
+
+      const bgColor = scene.background as THREE.Color;
+      bgColor.lerp(isLight ? _rackBgLight : _rackBgDark, 1 - Math.exp(-8 * delta));
+      if (scene.fog instanceof THREE.FogExp2) {
+        scene.fog.color.copy(bgColor);
+        scene.fog.density = THREE.MathUtils.damp(scene.fog.density, isLight ? 0.028 : 0.045, 6, delta);
+      }
+      hemiLight.color.lerp(isLight ? _rackHemiSkyLight : _rackHemiSkyDark, 1 - Math.exp(-8 * delta));
+      hemiLight.groundColor.lerp(isLight ? _rackHemiGroundLight : _rackHemiGroundDark, 1 - Math.exp(-8 * delta));
+      hemiLight.intensity = THREE.MathUtils.damp(hemiLight.intensity, isLight ? 1.35 : 0.85, 6, delta);
+      keyLight.intensity = THREE.MathUtils.damp(keyLight.intensity, isLight ? 2.6 : 2.3, 6, delta);
+      matRackFrame.color.lerp(isLight ? _rackFrameLight : _rackFrameDark, 1 - Math.exp(-8 * delta));
 
       if (resetCamRef.current) {
         camera.position.lerp(_pos.set(3.2, 2.6, 5.8), 1 - Math.exp(-8 * delta));
@@ -428,14 +513,23 @@ export default function ThreeHardwareRacks({
       renderer.setSize(w, h);
     };
 
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    resizeObserver.observe(container);
     window.addEventListener('resize', handleResize);
 
     return () => {
       disposed = true;
+      resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
       window.cancelAnimationFrame(frameId);
       window.clearTimeout(frameId);
       controls.dispose();
+      rackGridDark.dispose();
+      rackGridLight.dispose();
+      floorGeo.dispose();
+      floorMat.dispose();
       renderer.dispose();
     };
   }, []);
@@ -446,13 +540,13 @@ export default function ThreeHardwareRacks({
 
   return (
     <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-sky-400/25 bg-white dark:bg-[#090d1e] shadow-sm">
-      <div className="relative w-full h-[400px] sm:h-[450px] bg-[#050814]">
-        <div ref={canvasMountRef} className="w-full h-full cursor-crosshair" />
+      <div className="relative w-full h-[400px] sm:h-[450px] bg-[#e8eff7] dark:bg-[#050814]">
+        <div ref={canvasMountRef} className="absolute inset-0 w-full h-full cursor-crosshair" />
 
         {/* Top Overlay Badge */}
         <div className="pointer-events-none absolute top-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 z-10">
-          <div className="pointer-events-auto bg-[#090d1e]/95 border border-slate-800 px-3.5 py-2 rounded-lg">
-            <div className="flex items-center gap-2 text-xs font-mono text-sky-400">
+          <div className="pointer-events-auto bg-white/95 dark:bg-[#090d1e]/95 border border-slate-300 dark:border-slate-800 px-3.5 py-2 rounded-lg shadow-sm">
+            <div className="flex items-center gap-2 text-xs font-mono font-semibold text-sky-700 dark:text-sky-400">
               <Cpu className="w-3.5 h-3.5" />
               <span>
                 {activeRack === 'CIR'
@@ -460,7 +554,7 @@ export default function ThreeHardwareRacks({
                   : 'ISS Microgravity Science Glovebox (MSG • 255-L Enclosed Work Volume)'}
               </span>
             </div>
-            <div className="text-xs text-slate-400 font-mono mt-0.5 tabular-nums">
+            <div className="text-xs text-slate-600 dark:text-slate-400 font-mono mt-0.5 tabular-nums">
               Exploded Separation: {explodePct}% · Orbit/Zoom Enabled
             </div>
           </div>
@@ -470,9 +564,9 @@ export default function ThreeHardwareRacks({
             onClick={() => {
               resetCamRef.current = true;
             }}
-            className="pointer-events-auto px-3 py-1.5 text-xs font-medium text-slate-200 bg-[#090d1e]/95 hover:bg-slate-800 border border-slate-700 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0"
+            className="pointer-events-auto px-3 py-1.5 text-xs font-medium text-slate-800 dark:text-slate-200 bg-white/95 dark:bg-[#090d1e]/95 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-sm cursor-pointer"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-sky-400" />
+            <RotateCcw className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
             Reset Camera
           </button>
         </div>
