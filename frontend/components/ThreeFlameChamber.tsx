@@ -37,7 +37,7 @@ const _tempQuat = new THREE.Quaternion();
 const _tempColor = new THREE.Color();
 const _targetColorInner = new THREE.Color();
 const _targetColorOuter = new THREE.Color();
-const _defaultOrbitTarget = new THREE.Vector3(0, 1.18, 0);
+const _defaultOrbitTarget = new THREE.Vector3(0, 1.28, 0);
 
 function createProceduralGridTexture(maxAnisotropy: number): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
@@ -149,15 +149,15 @@ export default function ThreeFlameChamber({
     pmremGenerator.dispose();
 
     const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-    camera.position.set(0, 2.35, 7.2);
+    camera.position.set(0, 2.45, 8.1);
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 1.18, 0);
+    controls.target.set(0, 1.28, 0);
     controls.enableDamping = !isSoftwareGl;
     controls.dampingFactor = 0.06;
     controls.maxPolarAngle = Math.PI * 0.49;
-    controls.minDistance = 3.6;
-    controls.maxDistance = 13.0;
+    controls.minDistance = 3.8;
+    controls.maxDistance = 13.5;
     controls.update();
 
     // 3. Balanced 3-Point Studio Lighting Rig
@@ -570,7 +570,7 @@ export default function ThreeFlameChamber({
       const elapsed = (nowMs - startTimeMs) / 1000;
 
       if (resetCameraTriggerRef.current) {
-        camera.position.lerp(_tempPos.set(0, 2.35, 7.2), 1 - Math.exp(-8 * delta));
+        camera.position.lerp(_tempPos.set(0, 2.45, 8.1), 1 - Math.exp(-8 * delta));
         controls.target.lerp(_defaultOrbitTarget, 1 - Math.exp(-8 * delta));
         if (camera.position.distanceTo(_tempPos) < 0.05) {
           resetCameraTriggerRef.current = false;
@@ -717,10 +717,15 @@ export default function ThreeFlameChamber({
       renderer.setSize(w, h);
     };
 
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    resizeObserver.observe(container);
     window.addEventListener('resize', handleResize);
 
     return () => {
       disposed = true;
+      resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
       window.cancelAnimationFrame(frameId);
       window.clearTimeout(frameId);
@@ -828,31 +833,49 @@ export default function ThreeFlameChamber({
         </div>
       </div>
 
-      {/* Main 3D Optical Chamber Stage with Scientific Callouts (Matching Dashboard_UI) */}
-      <div className="relative flex-1 min-h-[430px] sm:min-h-[480px] bg-[#050814]">
-        <div ref={canvasMountRef} className="w-full h-full cursor-crosshair" />
+      {/* Main 3D Optical Chamber Stage with Expanded Vertical Clearance */}
+      <div className="relative flex-1 min-h-[500px] sm:min-h-[550px] bg-[#050814]">
+        <div ref={canvasMountRef} className="absolute inset-0 w-full h-full cursor-crosshair" />
 
-        {/* Top-Left Telemetry Readout Box (Exact Dashboard_UI Match) */}
-        <div className="pointer-events-none absolute top-3 left-3 right-3 flex flex-wrap items-start justify-between gap-2 z-10">
-          <div className="bg-[#090e22]/90 border border-slate-700/80 px-3.5 py-2 rounded-lg backdrop-blur-sm max-w-xl">
-            <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-              <span className="text-amber-400 font-semibold">
-                LEFT RIG: 1.00g Buoyant Teardrop
-              </span>
-              <span className="text-slate-500">·</span>
-              <span className="text-cyan-400 font-semibold">
-                RIGHT RIG: {gravityLabel}
-              </span>
+        {/* Unified Two-Column Top HUD Bar (Merged Rig Titles + Optical Envelopes + Live Telemetry) */}
+        <div className="pointer-events-none absolute top-3 left-3 right-3 z-10">
+          <div className="bg-[#090e22]/92 border border-slate-700/80 rounded-xl px-4 py-2.5 shadow-lg space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:divide-x sm:divide-slate-800">
+              {/* Left Rig Header Column */}
+              <div className="min-w-0 sm:pr-3">
+                <div className="text-xs font-mono font-bold text-amber-400 truncate">
+                  LEFT RIG · 1.00g Buoyant Teardrop
+                </div>
+                <div className="text-[11px] font-mono text-slate-400 truncate mt-0.5">
+                  Boundary Layer (76 mm) · Earth Reference
+                </div>
+              </div>
+
+              {/* Right Rig Header Column */}
+              <div className="min-w-0 sm:pl-4">
+                <div className="text-xs font-mono font-bold text-cyan-300 truncate">
+                  RIGHT RIG · {gravityLabel}
+                </div>
+                <div className="text-[11px] font-mono text-slate-400 truncate mt-0.5">
+                  {activeDataset.psiId} Optical Envelope · {activeDataset.shortTitle}
+                </div>
+              </div>
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-2.5 text-[11px] font-mono tabular-nums text-slate-300">
+
+            {/* Live Compact Telemetry Strip */}
+            <div className="pt-1.5 border-t border-slate-800/90 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-mono tabular-nums text-slate-300">
               <span>
                 O₂: <strong className="text-amber-300">{params.oxygenPercent.toFixed(0)}%</strong>
               </span>
-              <span className="text-slate-600">·</span>
+              <span className="text-slate-600" aria-hidden="true">·</span>
               <span>
                 Duct Flow: <strong className="text-emerald-300">{params.airflowCmPerSec.toFixed(1)} cm/s</strong>
               </span>
-              <span className="text-slate-600">·</span>
+              <span className="text-slate-600" aria-hidden="true">·</span>
+              <span>
+                E-FIELD: <strong className="text-purple-300">{params.eFieldKv >= 0 ? `+${params.eFieldKv.toFixed(1)}` : params.eFieldKv.toFixed(1)} kV</strong>
+              </span>
+              <span className="text-slate-600" aria-hidden="true">·</span>
               <span>
                 E-Regime:{' '}
                 <strong className={params.coolFlameMode ? 'text-purple-300' : 'text-sky-300'}>
@@ -865,53 +888,35 @@ export default function ThreeFlameChamber({
           </div>
         </div>
 
-        {/* Floating Chamber Titles & Scientific Dimension Callout Annotations (Matching Dashboard_UI) */}
+        {/* Non-Overlapping Outer-Perimeter & Mid-Gap Physics Callouts */}
         <div className="pointer-events-none hidden sm:block">
-          {/* Left Rig Title */}
-          <div className="absolute top-[74px] left-[22%] -translate-x-1/2 text-center">
-            <div className="text-sm font-bold text-amber-400 tracking-wide">
-              1.00g Buoyant Teardrop
-            </div>
-            <div className="text-[10px] font-mono text-slate-400 mt-0.5">
-              ── Boundary Layer (76 mm) ──
-            </div>
-          </div>
-
-          {/* Right Rig Title */}
-          <div className="absolute top-[74px] left-[76%] -translate-x-1/2 text-center">
-            <div className="text-sm font-bold text-cyan-300 tracking-wide">
-              {gravityLabel}
-            </div>
-            <div className="text-[10px] font-mono text-slate-400 mt-0.5">
-              ── {activeDataset.psiId} Optical Envelope ──
-            </div>
-          </div>
-
-          {/* Left Rig Callout Labels */}
-          <div className="absolute top-[42%] left-3 text-[10px] font-mono text-slate-400 bg-[#050814]/80 px-2 py-1 rounded border border-slate-800">
-            <div className="text-amber-300">Buoyant Plume</div>
+          {/* Left Perimeter Callout */}
+          <div className="absolute top-[52%] left-3 text-[10px] font-mono text-slate-300 bg-[#050814]/90 px-2.5 py-1 rounded-lg border border-slate-800">
+            <div className="text-amber-300 font-semibold">Buoyant Plume</div>
             <div>V_b ≈ 32 cm/s ↑</div>
           </div>
-          <div className="absolute top-[52%] left-[41%] text-[10px] font-mono text-slate-300 bg-[#050814]/85 px-2 py-1 rounded border border-slate-800">
-            <div className="text-amber-400">Soot Oxidation Zone</div>
+
+          {/* Center Gap Callout Stack */}
+          <div className="absolute top-[46%] left-1/2 -translate-x-1/2 text-[10px] font-mono text-slate-300 bg-[#050814]/90 px-2.5 py-1 rounded-lg border border-slate-800 text-center whitespace-nowrap">
+            <div className="text-cyan-300 font-semibold">Particle Trajectory</div>
+            <div>Fickian Radial Diffusion</div>
+          </div>
+          <div className="absolute top-[64%] left-1/2 -translate-x-1/2 text-[10px] font-mono text-slate-300 bg-[#050814]/90 px-2.5 py-1 rounded-lg border border-slate-800 text-center whitespace-nowrap">
+            <div className="text-amber-400 font-semibold">Soot Oxidation Zone</div>
             <div>1,650–1,890 K Annulus</div>
           </div>
 
-          {/* Right Rig Callout Labels */}
-          <div className="absolute top-[40%] left-[53%] text-[10px] font-mono text-slate-300 bg-[#050814]/85 px-2 py-1 rounded border border-slate-800">
-            <div className="text-cyan-300">Particle Trajectory</div>
-            <div>Fickian Radial Diffusion</div>
-          </div>
-          <div className="absolute top-[48%] right-3 text-[10px] font-mono text-slate-300 bg-[#050814]/85 px-2 py-1 rounded border border-slate-800 text-right">
-            <div className="text-sky-400">Reaction Sheet</div>
-            <div>{activeDataset.extinctionLimitLOI.slice(0, 24)}</div>
+          {/* Right Perimeter Callout */}
+          <div className="absolute top-[58%] right-3 text-[10px] font-mono text-slate-300 bg-[#050814]/90 px-2.5 py-1 rounded-lg border border-slate-800 text-right max-w-[190px]">
+            <div className="text-sky-400 font-semibold">Reaction Sheet</div>
+            <div className="truncate">{activeDataset.extinctionLimitLOI}</div>
           </div>
         </div>
 
         {/* Bottom Provenance Identification Strip */}
         <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-10">
           <div
-            className={`px-3.5 py-2 rounded-lg border backdrop-blur-md text-xs flex flex-wrap items-center justify-between gap-2 ${provenanceMeta.color}`}
+            className={`px-3.5 py-2 rounded-lg border text-xs flex flex-wrap items-center justify-between gap-2 ${provenanceMeta.color}`}
           >
             <div>
               <span className="font-mono font-bold mr-2">[{provenanceMeta.badge}]</span>
